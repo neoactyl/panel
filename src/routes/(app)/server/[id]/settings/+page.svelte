@@ -135,8 +135,8 @@
 		<span class="text-xs font-semibold tracking-widest uppercase">Resources</span>
 	</div>
 	<p class="text-sm text-white/50">
-		Change how much CPU, memory, and disk this server may use. The total must stay within your
-		remaining allocation.
+		Change how much CPU, memory, and disk this server may use, along with its database and
+		allocation limits. The total must stay within your remaining allocation.
 	</p>
 
 	{#if data.remaining}
@@ -194,6 +194,40 @@
 				value={server.disk.limit}
 				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
 			/>
+		</label>
+		<label class="flex flex-col gap-1.5">
+			<span class="text-xs font-semibold tracking-widest text-white/40 uppercase">
+				Database limit
+			</span>
+			<input
+				name="databases"
+				type="number"
+				min="0"
+				max={data.quota && data.quota.maxDatabases > 0 ? data.quota.maxDatabases : undefined}
+				step="1"
+				required
+				value={server.databaseLimit ?? 0}
+				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+			/>
+			<span class="text-[11px] text-white/30">0 disables databases</span>
+		</label>
+		<label class="flex flex-col gap-1.5">
+			<span class="text-xs font-semibold tracking-widest text-white/40 uppercase">
+				Allocation limit
+			</span>
+			<input
+				name="allocations"
+				type="number"
+				min="0"
+				max={data.quota && data.quota.maxAllocations > 0
+					? data.quota.maxAllocations + 1
+					: undefined}
+				step="1"
+				required
+				value={server.allocationLimit ?? 0}
+				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+			/>
+			<span class="text-[11px] text-white/30">Total ports, including the primary</span>
 		</label>
 		<div class="sm:col-span-3">
 			<button

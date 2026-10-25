@@ -20,6 +20,11 @@ const positiveInt = (value: FormDataEntryValue | null) => {
 	return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
 };
 
+const nonNegativeInt = (value: FormDataEntryValue | null) => {
+	const parsed = Number(String(value ?? '').trim());
+	return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const renewal = getRenewalSettings();
 	const empty = { quota: null, remaining: null, billing: null, renewal };
@@ -77,9 +82,15 @@ export const actions: Actions = {
 		const cpu = positiveInt(data.get('cpu'));
 		const ram = positiveInt(data.get('ram'));
 		const disk = positiveInt(data.get('disk'));
+		const databases = nonNegativeInt(data.get('databases'));
+		const allocations = nonNegativeInt(data.get('allocations'));
 
 		if (cpu === null || ram === null || disk === null) {
 			return fail(400, { message: 'CPU, memory, and disk must be positive whole numbers.' });
+		}
+
+		if (databases === null || allocations === null) {
+			return fail(400, { message: 'Database and allocation limits must be whole numbers.' });
 		}
 
 		const adapter = getUserAdapter(locals.panelUserId);
@@ -123,6 +134,20 @@ export const actions: Actions = {
 				exceeded.push(`disk ${disk} MB (${Math.max(0, quota.disk - used.disk)} MB left)`);
 			}
 
+			if (quota.maxDatabases > 0 && databases > quota.maxDatabases) {
+				exceeded.push(
+					`${databases} databases (${quota.maxDatabases} allowed per server)`
+				);
+			}
+
+			const extraAllocations = Math.max(0, allocations - 1);
+
+			if (quota.maxAllocations > 0 && extraAllocations > quota.maxAllocations) {
+				exceeded.push(
+					`${extraAllocations} extra allocations (${quota.maxAllocations} allowed per server)`
+				);
+			}
+
 			if (exceeded.length > 0) {
 				return fail(400, {
 					message: `These resources exceed your allocation: ${exceeded.join(', ')}.`
@@ -131,7 +156,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			const server = await adapter.updateServer(params.id, { cpu, ram, disk });
+			const server = await adapter.updateServer(params.id, {
+				cpu,
+				ram,
+				disk,
+				databases,
+				allocations
+			});
 
 			logActivity({
 				userId: locals.user.id,
@@ -139,8 +170,14 @@ export const actions: Actions = {
 				message: `Updated resources for ${server.name}`,
 				metadata: {
 					serverId: params.id,
-					before: { cpu: current.cpu.limit, ram: current.memory.limit, disk: current.disk.limit },
-					after: { cpu, ram, disk }
+					before: {
+						cpu: current.cpu.limit,
+						ram: current.memory.limit,
+						disk: current.disk.limit,
+						databases: current.databaseLimit,
+						allocations: current.allocationLimit
+					},
+					after: { cpu, ram, disk, databases, allocations }
 				}
 			});
 

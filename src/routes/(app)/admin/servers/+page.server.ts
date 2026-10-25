@@ -10,6 +10,11 @@ const positiveInt = (value: FormDataEntryValue | null) => {
 	return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
 };
 
+const nonNegativeInt = (value: FormDataEntryValue | null) => {
+	const parsed = Number(String(value ?? '').trim());
+	return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
 export const load: PageServerLoad = async () => {
 	const panel = getPanelConfig();
 
@@ -39,6 +44,8 @@ export const actions: Actions = {
 		const cpu = positiveInt(data.get('cpu'));
 		const ram = positiveInt(data.get('ram'));
 		const disk = positiveInt(data.get('disk'));
+		const databases = nonNegativeInt(data.get('databases'));
+		const allocations = nonNegativeInt(data.get('allocations'));
 
 		if (!serverId) {
 			return fail(400, { message: 'Choose a server to update.' });
@@ -48,6 +55,10 @@ export const actions: Actions = {
 			return fail(400, { message: 'CPU, memory, and disk must be positive whole numbers.' });
 		}
 
+		if (databases === null || allocations === null) {
+			return fail(400, { message: 'Database and allocation limits must be whole numbers.' });
+		}
+
 		const adapter = getAdapter();
 
 		if (!adapter.capabilities.servers.update) {
@@ -55,13 +66,19 @@ export const actions: Actions = {
 		}
 
 		try {
-			const server = await adapter.updateServer(serverId, { cpu, ram, disk });
+			const server = await adapter.updateServer(serverId, {
+				cpu,
+				ram,
+				disk,
+				databases,
+				allocations
+			});
 
 			logActivity({
 				userId: locals.user?.id,
 				action: 'admin.server.resources',
 				message: `Updated resources for ${server.name}`,
-				metadata: { serverId, cpu, ram, disk }
+				metadata: { serverId, cpu, ram, disk, databases, allocations }
 			});
 
 			return { success: `Updated resources for ${server.name}.` };

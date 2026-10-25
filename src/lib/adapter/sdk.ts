@@ -76,6 +76,8 @@ export type UpdateServer = {
   ram?: number;
   disk?: number;
   cpu?: number;
+  databases?: number;
+  allocations?: number;
 };
 
 export type ServerStatus =
@@ -122,6 +124,8 @@ export type Server = {
   cpu: { used: number; limit: number };
   memory: { used: number; limit: number };
   disk: { used: number; limit: number };
+  databaseLimit?: number;
+  allocationLimit?: number;
   actions: ServerAction[];
   ownerId?: string;
 };

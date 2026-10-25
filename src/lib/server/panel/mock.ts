@@ -449,6 +449,8 @@ export class MockAdapter extends Adapter {
       cpu: { used: 0, limit: input.cpu ?? 400 },
       memory: { used: 0, limit: input.ram ?? 4096 },
       disk: { used: 0, limit: input.disk ?? 20480 },
+      databaseLimit: input.databases ?? 1,
+      allocationLimit: input.allocations === undefined ? 1 : 1 + input.allocations,
       actions: ["start"],
     };
 
@@ -476,6 +478,8 @@ export class MockAdapter extends Adapter {
     if (input.cpu !== undefined) server.cpu.limit = input.cpu;
     if (input.ram !== undefined) server.memory.limit = input.ram;
     if (input.disk !== undefined) server.disk.limit = input.disk;
+    if (input.databases !== undefined) server.databaseLimit = input.databases;
+    if (input.allocations !== undefined) server.allocationLimit = input.allocations;
 
     return clone(server);
   }

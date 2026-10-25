@@ -151,6 +151,35 @@
 					</div>
 				{/each}
 			</div>
+
+			<div
+				in:fly={{ y: 12, duration: 300, delay: 210, easing: cubicOut }}
+				class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border border-white/10 bg-[#1a1a1a] px-4 py-2.5 text-xs text-white/50"
+			>
+				<span class="flex items-center gap-2">
+					<IconDatabase class="h-3.5 w-3.5 text-indigo-300/70" />
+					<span class="text-[10px] font-semibold tracking-widest text-white/30 uppercase">
+						Per server
+					</span>
+					<span class="font-semibold text-white/75">
+						{data.quota.maxDatabases > 0 ? data.quota.maxDatabases : 'Unlimited'} databases
+					</span>
+					<span class="text-white/20">·</span>
+					<span class="font-semibold text-white/75">
+						{data.quota.maxAllocations > 0 ? data.quota.maxAllocations : 'Unlimited'} extra
+						allocations
+					</span>
+				</span>
+				<span class="flex items-center gap-2">
+					<IconServer class="h-3.5 w-3.5 text-indigo-300/70" />
+					<span class="text-[10px] font-semibold tracking-widest text-white/30 uppercase">
+						Server slots
+					</span>
+					<span class="font-semibold text-white/75">
+						{data.servers.length}{data.quota.maxServers > 0 ? `/${data.quota.maxServers}` : ''}
+					</span>
+				</span>
+			</div>
 		</section>
 
 		<section

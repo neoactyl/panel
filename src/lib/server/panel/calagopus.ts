@@ -45,6 +45,13 @@ type CalagopusServerLimits = {
   io_weight?: number | null;
 };
 
+type CalagopusServerFeatureLimits = {
+  allocations?: number;
+  databases?: number;
+  backups?: number;
+  schedules?: number;
+};
+
 type CalagopusServer = {
   uuid: string;
   uuid_short: string;
@@ -54,6 +61,7 @@ type CalagopusServer = {
   is_suspended: boolean;
   is_transferring?: boolean;
   limits: CalagopusServerLimits;
+  feature_limits?: CalagopusServerFeatureLimits;
   node?: { name?: string } | null;
   node_name?: string;
   owner?: { uuid?: string; email?: string } | null;
@@ -357,6 +365,8 @@ export class Calagopus extends Adapter {
         used: usage?.disk ?? 0,
         limit: raw.limits.disk,
       },
+      databaseLimit: raw.feature_limits?.databases,
+      allocationLimit: raw.feature_limits?.allocations,
       actions,
       ownerId: raw.owner?.uuid,
     };
@@ -793,6 +803,15 @@ export class Calagopus extends Adapter {
       };
     }
 
+    const featureLimits = current.server.feature_limits;
+    if (input.databases !== undefined || input.allocations !== undefined) {
+      body.feature_limits = {
+        ...featureLimits,
+        databases: input.databases ?? featureLimits?.databases ?? 0,
+        allocations: input.allocations ?? featureLimits?.allocations ?? 1,
+      };
+    }
+
     await this.#jsonRequest(`/api/admin/servers/${id}`, "PATCH", body);
 
     return this.#toServer(
@@ -801,6 +820,8 @@ export class Calagopus extends Adapter {
         name: input.name ?? current.server.name,
         description: input.description ?? current.server.description,
         limits: (body.limits as CalagopusServerLimits) ?? limits,
+        feature_limits:
+          (body.feature_limits as CalagopusServerFeatureLimits) ?? featureLimits,
       },
       null,
     );

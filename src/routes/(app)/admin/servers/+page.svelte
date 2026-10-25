@@ -111,7 +111,7 @@
 									await update();
 									if (result.type === 'success') editing = null;
 								}}
-							class="mt-4 grid gap-3 border border-white/10 bg-[#121212] p-4 sm:grid-cols-4"
+							class="mt-4 grid gap-3 border border-white/10 bg-[#121212] p-4 sm:grid-cols-3"
 						>
 							<input type="hidden" name="serverId" value={server.id} />
 							<label class="block">
@@ -147,6 +147,34 @@
 									step="1"
 									required
 									value={server.disk.limit}
+									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+								/>
+							</label>
+							<label class="block">
+								<span class="text-[10px] tracking-wider text-white/35 uppercase">
+									Database limit
+								</span>
+								<input
+									name="databases"
+									type="number"
+									min="0"
+									step="1"
+									required
+									value={server.databaseLimit ?? 0}
+									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+								/>
+							</label>
+							<label class="block">
+								<span class="text-[10px] tracking-wider text-white/35 uppercase">
+									Allocation limit
+								</span>
+								<input
+									name="allocations"
+									type="number"
+									min="0"
+									step="1"
+									required
+									value={server.allocationLimit ?? 0}
 									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
 								/>
 							</label>
