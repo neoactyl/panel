@@ -3,8 +3,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
 	import IconExternalLink from '@tabler/icons-svelte/icons/external-link';
-	import IconGift from '@tabler/icons-svelte/icons/gift';
-	import IconTicket from '@tabler/icons-svelte/icons/ticket';
 	import IconCheck from '@tabler/icons-svelte/icons/check';
 	import type { PageProps } from './$types';
 
@@ -174,102 +172,4 @@
 			</div>
 		{/if}
 	</section>
-
-	<div class="grid gap-4 lg:grid-cols-2">
-		<section class="space-y-3">
-			<div class="flex items-center gap-2">
-				<IconTicket class="size-4 text-white/50" />
-				<h2 class="text-[10px] font-semibold tracking-widest text-white/50 uppercase">
-					Redeem voucher
-				</h2>
-			</div>
-			<form
-				method="POST"
-				action="?/redeem"
-				use:enhance={() => {
-					busy = 'redeem';
-					return async ({ update }) => {
-						await update();
-						busy = '';
-					};
-				}}
-				class="border border-white/10 bg-[#1a1a1a] p-4"
-			>
-				<input
-					name="code"
-					type="text"
-					required
-					placeholder="VOUCHER-CODE"
-					class="w-full border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm tracking-widest text-white uppercase placeholder:text-white/20 focus:border-indigo-500 focus:outline-none"
-				/>
-				<button
-					type="submit"
-					disabled={!data.vouchersEnabled || busy === 'redeem'}
-					class="mt-3 w-full border border-white/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-white/60 uppercase transition hover:border-white/20 hover:text-white disabled:opacity-40"
-				>
-					Redeem
-				</button>
-				{#if form?.redeemed}
-					<p class="mt-3 text-xs text-emerald-300">{form.redeemed}</p>
-				{/if}
-				{#if form?.error}
-					<p class="mt-3 text-xs text-red-300">{form.error}</p>
-				{/if}
-				{#if !data.vouchersEnabled}
-					<p class="mt-3 text-xs text-white/30">Vouchers are currently disabled.</p>
-				{/if}
-			</form>
-		</section>
-
-		<section class="space-y-3">
-			<div class="flex items-center gap-2">
-				<IconGift class="size-4 text-white/50" />
-				<h2 class="text-[10px] font-semibold tracking-widest text-white/50 uppercase">
-					Gift credits
-				</h2>
-			</div>
-			<form
-				method="POST"
-				action="?/gift"
-				use:enhance={() => {
-					busy = 'gift';
-					return async ({ update }) => {
-						await update();
-						busy = '';
-					};
-				}}
-				class="space-y-3 border border-white/10 bg-[#1a1a1a] p-4"
-			>
-				<input
-					name="email"
-					type="email"
-					required
-					placeholder="Recipient email"
-					class="w-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-indigo-500 focus:outline-none"
-				/>
-				<input
-					name="amount"
-					type="number"
-					required
-					min={data.giftMin}
-					step="1"
-					placeholder="Amount (min {data.giftMin})"
-					class="w-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-indigo-500 focus:outline-none"
-				/>
-				<button
-					type="submit"
-					disabled={!data.giftsEnabled || busy === 'gift'}
-					class="w-full border border-white/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-white/60 uppercase transition hover:border-white/20 hover:text-white disabled:opacity-40"
-				>
-					Send credits
-				</button>
-				{#if form?.gifted}
-					<p class="text-xs text-emerald-300">{form.gifted}</p>
-				{/if}
-				{#if !data.giftsEnabled}
-					<p class="text-xs text-white/30">Gifting is currently disabled.</p>
-				{/if}
-			</form>
-		</section>
-	</div>
 </div>
