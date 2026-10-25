@@ -216,6 +216,14 @@
 				<label class={label} for="quota.disk">User disk quota (MB)</label>
 				<input id="quota.disk" name="quota.disk" type="number" min="1" class={input} value={data.current['quota.disk']} />
 			</div>
+			<div>
+				<label class={label} for="quota.databases">Databases per server (0 = unlimited)</label>
+				<input id="quota.databases" name="quota.databases" type="number" min="0" class={input} value={data.current['quota.databases']} />
+			</div>
+			<div>
+				<label class={label} for="quota.allocations">Extra allocations per server (0 = unlimited)</label>
+				<input id="quota.allocations" name="quota.allocations" type="number" min="0" class={input} value={data.current['quota.allocations']} />
+			</div>
 		</div>
 		<div class="mt-4 grid gap-4 sm:grid-cols-3">
 			<div>

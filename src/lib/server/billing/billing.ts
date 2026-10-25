@@ -6,6 +6,7 @@ import { serverBilling, serverEntitlement } from '#lib/server/db/ops.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
 import { notifyUser } from '#lib/server/system/notifications.ts';
 import { getBool, getNumber, getSetting } from '#lib/server/config/settings.ts';
+import { getRenewalWindow, RENEWAL_WINDOW_FRACTION } from '#lib/renewal-window.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -221,12 +222,17 @@ const suspendBilling = async (billing: typeof serverBilling.$inferSelect, reason
 		metadata: { serverId: billing.serverId, userId: billing.userId, reason, suspended, deleteAt }
 	});
 
+	const autoRenewDisabled = reason === 'auto-renew is disabled';
+	const body = autoRenewDisabled
+		? `Your server was suspended because its renewal date passed and auto-renew is off. Renew it before ${deleteAt.toLocaleDateString()} or it will be deleted.`
+		: `Your server was suspended because the renewal payment failed. It will be deleted on ${deleteAt.toLocaleDateString()}. Add credits to renew it before then.`;
+
 	await notifyUser({
 		userId: billing.userId,
 		kind: 'billing.suspended',
-		title: 'Server suspended for non-payment',
-		body: `Your server was suspended because the renewal payment failed. It will be deleted on ${deleteAt.toLocaleDateString()}. Add credits to renew it before then.`,
-		url: '/storefront'
+		title: autoRenewDisabled ? 'Server suspended after renewal date' : 'Server suspended for non-payment',
+		body,
+		url: '/server'
 	});
 };
 
@@ -262,6 +268,36 @@ const deleteBillingServer = async (billing: typeof serverBilling.$inferSelect) =
 		title: 'Server deleted',
 		body: 'Your server was deleted because its renewal payment was not received in time.',
 		url: '/storefront'
+	});
+};
+
+const notifyRenewalDue = async (
+	billing: typeof serverBilling.$inferSelect,
+	remainingMs: number
+) => {
+	const now = new Date();
+	const last = billing.lastNotifiedAt?.getTime() ?? 0;
+
+	if (now.getTime() - last < 12 * 60 * 60 * 1000) return;
+
+	await db
+		.update(serverBilling)
+		.set({ lastNotifiedAt: now, updatedAt: now })
+		.where(eq(serverBilling.id, billing.id))
+		.run();
+
+	const due = new Date(billing.nextRenewalAt).toLocaleDateString();
+	const left =
+		remainingMs > 0
+			? `${Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)))} hours`
+			: 'now';
+
+	await notifyUser({
+		userId: billing.userId,
+		kind: 'billing.due',
+		title: 'Server renewal due soon',
+		body: `Your server renews on ${due} for ${formatCredits(billing.renewalPrice)}. Auto-renew is off, so renew within ${left} or the server will be suspended.`,
+		url: '/server'
 	});
 };
 
@@ -306,7 +342,9 @@ export const renewBillingNow = async (userId: string, serverId: string) => {
 	});
 
 	const now = new Date();
-	const next = addDays(now, billing.intervalDays);
+	const stillActive =
+		billing.status !== 'suspended' && billing.nextRenewalAt.getTime() > now.getTime();
+	const next = addDays(stillActive ? billing.nextRenewalAt : now, billing.intervalDays);
 
 	await db
 		.update(serverBilling)
@@ -367,10 +405,31 @@ export const runRenewals = async () => {
 				continue;
 			}
 
+			if (billing.renewalPrice <= 0) {
+				const next = addDays(billing.nextRenewalAt, billing.intervalDays);
+				await db
+					.update(serverBilling)
+					.set({
+						status: 'active',
+						nextRenewalAt: next.getTime() <= now.getTime() ? addDays(now, billing.intervalDays) : next,
+						lastRenewedAt: now,
+						suspendedAt: null,
+						deleteAt: null,
+						lastNotifiedAt: null,
+						updatedAt: now
+					})
+					.where(eq(serverBilling.id, billing.id))
+					.run();
+
+				await resumeBillingServer(billing.serverId);
+				renewed += 1;
+				continue;
+			}
+
 			const lastAttempt = billing.lastNotifiedAt?.getTime() ?? 0;
 			if (now.getTime() - lastAttempt < 60 * 60 * 1000) continue;
 
-			if (!billing.autoRenew || billing.renewalPrice <= 0) {
+			if (!billing.autoRenew) {
 				continue;
 			}
 
@@ -424,12 +483,40 @@ export const runRenewals = async () => {
 		}
 
 		const due = billing.nextRenewalAt.getTime();
-		if (due > now.getTime() + retryWindow) continue;
+		const renewalWindow = getRenewalWindow(billing, now.getTime());
+		const processWindow = Math.max(
+			retryWindow,
+			renewalWindow.intervalMs * RENEWAL_WINDOW_FRACTION
+		);
+
+		if (due > now.getTime() + processWindow) continue;
 
 		if (!billing.autoRenew) {
+			if (billing.renewalPrice <= 0) {
+				if (due <= now.getTime()) {
+					const next = addDays(billing.nextRenewalAt, billing.intervalDays);
+					await db
+						.update(serverBilling)
+						.set({
+							nextRenewalAt:
+								next.getTime() <= now.getTime() ? addDays(now, billing.intervalDays) : next,
+							lastRenewedAt: now,
+							lastNotifiedAt: null,
+							updatedAt: now
+						})
+						.where(eq(serverBilling.id, billing.id))
+						.run();
+
+					renewed += 1;
+				}
+				continue;
+			}
+
 			if (due <= now.getTime()) {
 				await suspendBilling(billing, 'auto-renew is disabled');
 				suspended += 1;
+			} else if (renewalWindow.canRenew) {
+				await notifyRenewalDue(billing, renewalWindow.remainingMs);
 			}
 			continue;
 		}

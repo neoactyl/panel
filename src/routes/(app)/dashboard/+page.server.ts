@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { getAuth } from '#lib/server/auth/auth.ts';
 import { getAdapter, getAdapterForUser } from '#lib/server/panel/adapter.ts';
 import { panelAuthEnabled } from '#lib/server/auth/panel-auth.ts';
-import { getQuota } from '#lib/server/config/settings.ts';
+import { getEffectiveQuota } from '#lib/server/quota/user.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(302, '/auth/login');
 	}
 
-	const quota = getQuota();
+	const quota = await getEffectiveQuota(locals.user.id);
 	const panelLinkAvailable = panelAuthEnabled();
 
 	if (!panelLinkAvailable) {

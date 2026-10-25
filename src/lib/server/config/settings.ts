@@ -17,6 +17,8 @@ export const SETTING_DEFAULTS = {
 	'quota.cpu': '400',
 	'quota.memory': '8192',
 	'quota.disk': '51200',
+	'quota.databases': '0',
+	'quota.allocations': '0',
 	'server.default.cpu': '100',
 	'server.default.memory': '2048',
 	'server.default.disk': '10240',
@@ -247,7 +249,9 @@ export const serverFeatureEnabled = (slug: string) => {
 export const getQuota = () => ({
 	cpu: getNumber('quota.cpu'),
 	memory: getNumber('quota.memory'),
-	disk: getNumber('quota.disk')
+	disk: getNumber('quota.disk'),
+	maxDatabases: getNumber('quota.databases'),
+	maxAllocations: getNumber('quota.allocations')
 });
 
 export const getDefaultServerLimits = () => ({

@@ -751,8 +751,9 @@ export class Calagopus extends Adapter {
         disk,
       },
       feature_limits: {
-        allocations: 1,
-        databases: 1,
+        allocations: 1 + Math.max(0, Math.floor(input.allocations ?? 0)),
+        databases:
+          input.databases === undefined ? 1 : Math.max(0, Math.floor(input.databases)),
         backups: 2,
         schedules: 1,
       },

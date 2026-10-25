@@ -8,6 +8,8 @@ export type EffectiveQuota = {
 	memory: number;
 	disk: number;
 	maxServers: number;
+	maxDatabases: number;
+	maxAllocations: number;
 	overridden: boolean;
 };
 
@@ -16,6 +18,8 @@ export type UserQuotaOverrides = {
 	memory: number | null;
 	disk: number | null;
 	maxServers: number | null;
+	maxDatabases: number | null;
+	maxAllocations: number | null;
 };
 
 export const getEffectiveQuota = async (userId?: string | null): Promise<EffectiveQuota> => {
@@ -29,7 +33,9 @@ export const getEffectiveQuota = async (userId?: string | null): Promise<Effecti
 			cpu: userQuota.cpu,
 			memory: userQuota.memory,
 			disk: userQuota.disk,
-			maxServers: userQuota.maxServers
+			maxServers: userQuota.maxServers,
+			maxDatabases: userQuota.maxDatabases,
+			maxAllocations: userQuota.maxAllocations
 		})
 		.from(userQuota)
 		.where(eq(userQuota.userId, userId))
@@ -42,6 +48,8 @@ export const getEffectiveQuota = async (userId?: string | null): Promise<Effecti
 		memory: row.memory ?? defaults.memory,
 		disk: row.disk ?? defaults.disk,
 		maxServers: row.maxServers ?? maxServers,
+		maxDatabases: row.maxDatabases ?? defaults.maxDatabases,
+		maxAllocations: row.maxAllocations ?? defaults.maxAllocations,
 		overridden: true
 	};
 };
@@ -52,7 +60,9 @@ export const getUserQuotaOverrides = async (userId: string): Promise<UserQuotaOv
 			cpu: userQuota.cpu,
 			memory: userQuota.memory,
 			disk: userQuota.disk,
-			maxServers: userQuota.maxServers
+			maxServers: userQuota.maxServers,
+			maxDatabases: userQuota.maxDatabases,
+			maxAllocations: userQuota.maxAllocations
 		})
 		.from(userQuota)
 		.where(eq(userQuota.userId, userId))
@@ -66,7 +76,9 @@ export const setUserQuota = async (userId: string, values: UserQuotaOverrides) =
 		values.cpu === null &&
 		values.memory === null &&
 		values.disk === null &&
-		values.maxServers === null;
+		values.maxServers === null &&
+		values.maxDatabases === null &&
+		values.maxAllocations === null;
 
 	if (empty) {
 		await db.delete(userQuota).where(eq(userQuota.userId, userId)).run();
@@ -81,6 +93,8 @@ export const setUserQuota = async (userId: string, values: UserQuotaOverrides) =
 			memory: values.memory,
 			disk: values.disk,
 			maxServers: values.maxServers,
+			maxDatabases: values.maxDatabases,
+			maxAllocations: values.maxAllocations,
 			updatedAt: new Date()
 		})
 		.onConflictDoUpdate({
@@ -90,6 +104,8 @@ export const setUserQuota = async (userId: string, values: UserQuotaOverrides) =
 				memory: values.memory,
 				disk: values.disk,
 				maxServers: values.maxServers,
+				maxDatabases: values.maxDatabases,
+				maxAllocations: values.maxAllocations,
 				updatedAt: new Date()
 			}
 		})
@@ -98,7 +114,14 @@ export const setUserQuota = async (userId: string, values: UserQuotaOverrides) =
 
 export const addUserQuota = async (
 	userId: string,
-	delta: { cpu?: number; memory?: number; disk?: number; maxServers?: number }
+	delta: {
+		cpu?: number;
+		memory?: number;
+		disk?: number;
+		maxServers?: number;
+		maxDatabases?: number;
+		maxAllocations?: number;
+	}
 ) => {
 	const current = await getEffectiveQuota(userId);
 	const next: UserQuotaOverrides = {
@@ -108,7 +131,15 @@ export const addUserQuota = async (
 		maxServers:
 			current.maxServers === 0
 				? 0
-				: Math.max(0, current.maxServers + (delta.maxServers ?? 0))
+				: Math.max(0, current.maxServers + (delta.maxServers ?? 0)),
+		maxDatabases:
+			current.maxDatabases === 0
+				? 0
+				: Math.max(0, current.maxDatabases + (delta.maxDatabases ?? 0)),
+		maxAllocations:
+			current.maxAllocations === 0
+				? 0
+				: Math.max(0, current.maxAllocations + (delta.maxAllocations ?? 0))
 	};
 
 	await setUserQuota(userId, next);

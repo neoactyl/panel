@@ -16,6 +16,7 @@ const optionalId = (raw: string) => {
 	const parsed = Number(raw);
 	return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
 };
+
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!isAdmin(locals.user)) error(403, { message: 'Administrator access is required.' });
 
@@ -69,7 +70,7 @@ export const actions: Actions = {
 			enabled: form.data.enabled,
 			oncePerUser: form.data.oncePerUser,
 			price: form.data.price,
-			renewalPrice: form.data.renewalPrice,
+			renewalPrice: kind === 'server' ? form.data.renewalPrice : 0,
 			durationDays: form.data.durationDays,
 			renewable: kind === 'server' ? form.data.renewable : false,
 			stackable: form.data.stackable,

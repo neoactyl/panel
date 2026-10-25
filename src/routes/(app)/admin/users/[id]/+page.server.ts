@@ -42,7 +42,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				cpu: overrides?.cpu ?? null,
 				memory: overrides?.memory ?? null,
 				disk: overrides?.disk ?? null,
-				maxServers: overrides?.maxServers ?? null
+				maxServers: overrides?.maxServers ?? null,
+				maxDatabases: overrides?.maxDatabases ?? null,
+				maxAllocations: overrides?.maxAllocations ?? null
 			},
 			zod4(userQuotaSchema),
 			{ id: 'quota' }
@@ -90,7 +92,9 @@ export const actions: Actions = {
 			cpu: form.data.cpu,
 			memory: form.data.memory,
 			disk: form.data.disk,
-			maxServers: form.data.maxServers
+			maxServers: form.data.maxServers,
+			maxDatabases: form.data.maxDatabases,
+			maxAllocations: form.data.maxAllocations
 		});
 
 		logActivity({
@@ -102,7 +106,9 @@ export const actions: Actions = {
 				cpu: form.data.cpu,
 				memory: form.data.memory,
 				disk: form.data.disk,
-				maxServers: form.data.maxServers
+				maxServers: form.data.maxServers,
+				maxDatabases: form.data.maxDatabases,
+				maxAllocations: form.data.maxAllocations
 			}
 		});
 
@@ -124,7 +130,14 @@ export const actions: Actions = {
 
 		if (!target) return message(form, 'User not found.', { status: 404 });
 
-		await setUserQuota(target.id, { cpu: null, memory: null, disk: null, maxServers: null });
+		await setUserQuota(target.id, {
+			cpu: null,
+			memory: null,
+			disk: null,
+			maxServers: null,
+			maxDatabases: null,
+			maxAllocations: null
+		});
 
 		logActivity({
 			userId: locals.user?.id,

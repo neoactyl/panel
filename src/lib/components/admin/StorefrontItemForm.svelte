@@ -4,7 +4,7 @@
 	import IconPlus from '@tabler/icons-svelte/icons/plus';
 	import type { SuperForm } from 'sveltekit-superforms';
 	import type { StorefrontItemFields } from '#lib/schemas.ts';
-	import {Button } from "#lib/components/ui/button"
+	import { Button } from '#lib/components/ui/button/index.js';
 
 	let {
     nodes,
@@ -51,7 +51,7 @@
 		</div>
 	{/if}
 
-	<form method="POST" action="?/save" class="border border-white/10 bg-[#1a1a1a] p-5">
+	<form method="POST" action="?/save" use:enhance class="border border-white/10 bg-[#1a1a1a] p-5">
 		<div class="flex items-center gap-2">
 			<IconPlus class="h-4 w-4 text-white/30" />
 			<h2 class="text-sm font-bold text-white">
@@ -87,18 +87,20 @@
 				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Price</span>
 				<input name="price" type="number" min="0" bind:value={$fields.price} class={inputClass} />
 			</label>
-			<label class="block">
-				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
-					{$fields.kind === 'resource' ? 'Renewal add-on' : 'Renewal price'}
-				</span>
-				<input
-					name="renewalPrice"
-					type="number"
-					min="0"
-					bind:value={$fields.renewalPrice}
-					class={inputClass}
-				/>
-			</label>
+			{#if $fields.kind === 'server'}
+				<label class="block">
+					<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
+						Renewal price
+					</span>
+					<input
+						name="renewalPrice"
+						type="number"
+						min="0"
+						bind:value={$fields.renewalPrice}
+						class={inputClass}
+					/>
+				</label>
+			{/if}
 			{#if $fields.kind === 'server'}
 				<label class="block">
 					<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Renewal interval (days)</span>
@@ -219,24 +221,24 @@
 
 		<div class="mt-4 flex flex-wrap gap-5">
 			<label class="flex items-center gap-2 text-xs text-white/60">
-				<Checkbox bind:checked={$fields.enabled} />
+				<Checkbox name="enabled" bind:checked={$fields.enabled} />
 				Enabled
 			</label>
 			<label class="flex items-center gap-2 text-xs text-white/60">
-				<Checkbox bind:checked={$fields.oncePerUser} />
+				<Checkbox name="oncePerUser" bind:checked={$fields.oncePerUser} />
 				Once per user
 			</label>
 			<label class="flex items-center gap-2 text-xs text-white/60">
-				<Checkbox bind:checked={$fields.stackable} />
+				<Checkbox name="stackable" bind:checked={$fields.stackable} />
 				Stackable
 			</label>
 			{#if $fields.kind === 'server'}
 				<label class="flex items-center gap-2 text-xs text-white/60">
-					<Checkbox bind:checked={$fields.renewable} />
+					<Checkbox name="renewable" bind:checked={$fields.renewable} />
 					Renewable
 				</label>
 				<label class="flex items-center gap-2 text-xs text-white/60">
-					<Checkbox bind:checked={$fields.removable} />
+					<Checkbox name="removable" bind:checked={$fields.removable} />
 					Removable
 				</label>
 			{/if}

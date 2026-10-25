@@ -18,6 +18,8 @@
 	const quotaMemory = fieldProxy(quotaSf, 'memory');
 	const quotaDisk = fieldProxy(quotaSf, 'disk');
 	const quotaMaxServers = fieldProxy(quotaSf, 'maxServers');
+	const quotaMaxDatabases = fieldProxy(quotaSf, 'maxDatabases');
+	const quotaMaxAllocations = fieldProxy(quotaSf, 'maxAllocations');
 
 	const grant = superForm(data.grantForm, {
 		id: 'grant',
@@ -86,7 +88,7 @@
 			</span>
 		</div>
 
-		<div class="mt-5 grid gap-3 sm:grid-cols-4">
+		<div class="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
 			<div class="border border-white/10 bg-[#121212] px-3 py-2">
 				<p class="text-[10px] tracking-widest text-white/35 uppercase">CPU</p>
 				<p class="mt-1 text-sm font-semibold text-white">{data.effective.cpu}%</p>
@@ -104,9 +106,25 @@
 				</p>
 			</div>
 			<div class="border border-white/10 bg-[#121212] px-3 py-2">
-				<p class="text-[10px] tracking-widest text-white/35 uppercase">Servers</p>
+				<p class="text-[10px] tracking-widest text-white/35 uppercase">Server slots</p>
 				<p class="mt-1 text-sm font-semibold text-white">
 					{data.effective.maxServers > 0 ? data.effective.maxServers : 'Unlimited'}
+				</p>
+			</div>
+			<div class="border border-white/10 bg-[#121212] px-3 py-2">
+				<p class="text-[10px] tracking-widest text-white/35 uppercase">Databases</p>
+				<p class="mt-1 text-sm font-semibold text-white">
+					{data.effective.maxDatabases > 0
+						? `${data.effective.maxDatabases} / server`
+						: 'Unlimited'}
+				</p>
+			</div>
+			<div class="border border-white/10 bg-[#121212] px-3 py-2">
+				<p class="text-[10px] tracking-widest text-white/35 uppercase">Extra ports</p>
+				<p class="mt-1 text-sm font-semibold text-white">
+					{data.effective.maxAllocations > 0
+						? `${data.effective.maxAllocations} / server`
+						: 'Unlimited'}
 				</p>
 			</div>
 		</div>
@@ -194,10 +212,11 @@
 			<h2 class="text-sm font-bold text-white">Resource overrides</h2>
 		</div>
 		<p class="mt-1 text-xs text-white/40">
-			Leave a field blank to inherit the global default. Set servers to 0 for unlimited.
+			Leave a field blank to inherit the global default. Set server slots, databases, or extra
+			ports to 0 for unlimited.
 		</p>
 
-		<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			<label class="block">
 				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">CPU %</span>
 				<input
@@ -244,7 +263,7 @@
 				{/if}
 			</label>
 			<label class="block">
-				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Max servers</span>
+				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Server slots</span>
 				<input
 					name="maxServers"
 					type="number"
@@ -256,6 +275,36 @@
 				/>
 				{#if $quotaErrors.maxServers}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxServers.join(' ')}</span>
+				{/if}
+			</label>
+			<label class="block">
+				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Databases / server</span>
+				<input
+					name="maxDatabases"
+					type="number"
+					min="0"
+					step="1"
+					bind:value={$quotaMaxDatabases}
+					placeholder={String(data.defaults.maxDatabases)}
+					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+				/>
+				{#if $quotaErrors.maxDatabases}
+					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxDatabases.join(' ')}</span>
+				{/if}
+			</label>
+			<label class="block">
+				<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Extra allocations / server</span>
+				<input
+					name="maxAllocations"
+					type="number"
+					min="0"
+					step="1"
+					bind:value={$quotaMaxAllocations}
+					placeholder={String(data.defaults.maxAllocations)}
+					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+				/>
+				{#if $quotaErrors.maxAllocations}
+					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxAllocations.join(' ')}</span>
 				{/if}
 			</label>
 		</div>

@@ -96,6 +96,8 @@ export const actions: Actions = {
 		const cpu = optionalInt(data.get('cpu'), 1);
 		const ram = optionalInt(data.get('ram'), 1);
 		const disk = optionalInt(data.get('disk'), 1);
+		const databases = optionalInt(data.get('databases'), 0);
+		const allocations = optionalInt(data.get('allocations'), 0);
 
 		if (name.length < 2) {
 			return fail(400, { message: 'Server name must be at least 2 characters.' });
@@ -107,6 +109,10 @@ export const actions: Actions = {
 
 		if (cpu === null || ram === null || disk === null) {
 			return fail(400, { message: 'Resource values must be positive whole numbers.' });
+		}
+
+		if (databases === null || allocations === null) {
+			return fail(400, { message: 'Database and allocation counts must be whole numbers.' });
 		}
 
 		if (software === null || softwareGroup === null) {
@@ -171,6 +177,29 @@ export const actions: Actions = {
 		const defaults = getDefaultServerLimits();
 		const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
 		const effectiveQuota = quotaEnforced ? await getEffectiveQuota(locals.user?.id) : null;
+		const requestedDatabases = databases ?? 0;
+		const requestedAllocations = allocations ?? 0;
+
+		if (
+			effectiveQuota &&
+			effectiveQuota.maxDatabases > 0 &&
+			requestedDatabases > effectiveQuota.maxDatabases
+		) {
+			return fail(400, {
+				message: `You can add at most ${effectiveQuota.maxDatabases} database${effectiveQuota.maxDatabases === 1 ? '' : 's'} to a server.`
+			});
+		}
+
+		if (
+			effectiveQuota &&
+			effectiveQuota.maxAllocations > 0 &&
+			requestedAllocations > effectiveQuota.maxAllocations
+		) {
+			return fail(400, {
+				message: `You can add at most ${effectiveQuota.maxAllocations} extra allocation${effectiveQuota.maxAllocations === 1 ? '' : 's'} to a server.`
+			});
+		}
+
 		const [nodes, servers] = await Promise.all([
 			adapter.getNodes(),
 			quotaEnforced ? adapter.getServers() : Promise.resolve([])
@@ -242,6 +271,8 @@ export const actions: Actions = {
 			cpu: resolvedCpu,
 			ram: resolvedRam,
 			disk: resolvedDisk,
+			databases: requestedDatabases,
+			allocations: requestedAllocations,
 			variables: { ...policy.environment, ...variables },
 			image: policy.dockerImage || undefined,
 			startup: policy.startupCommand || undefined
@@ -264,7 +295,14 @@ export const actions: Actions = {
 					kind: 'server_create',
 					reference,
 					description: `Created server ${name}`,
-					metadata: { name, cpu: resolvedCpu, ram: resolvedRam, disk: resolvedDisk }
+					metadata: {
+						name,
+						cpu: resolvedCpu,
+						ram: resolvedRam,
+						disk: resolvedDisk,
+						databases: requestedDatabases,
+						allocations: requestedAllocations
+					}
 				});
 				charged = cost;
 			} catch (cause) {

@@ -153,7 +153,9 @@ export const userQuotaSchema = z.object({
 	cpu: blankableNumber('Resource values must be positive whole numbers.', 1),
 	memory: blankableNumber('Resource values must be positive whole numbers.', 1),
 	disk: blankableNumber('Resource values must be positive whole numbers.', 1),
-	maxServers: blankableNumber('Resource values must be positive whole numbers.', 0)
+	maxServers: blankableNumber('Resource values must be positive whole numbers.', 0),
+	maxDatabases: blankableNumber('Resource values must be positive whole numbers.', 0),
+	maxAllocations: blankableNumber('Resource values must be positive whole numbers.', 0)
 });
 
 export const grantSchema = z.object({
@@ -217,9 +219,9 @@ export const storefrontItemSchema = z.object({
 	cpu: storefrontResource,
 	memory: storefrontResource,
 	disk: storefrontResource,
-	node: z.string().trim(),
-	softwareGroup: z.string().trim(),
-	software: z.string().trim(),
+	node: z.string().trim().default(''),
+	softwareGroup: z.string().trim().default(''),
+	software: z.string().trim().default(''),
 	successMode: z.preprocess(
 		(v) => (v === 'redirect' || v === 'message' ? v : 'console'),
 		z.enum(['console', 'redirect', 'message'], { message: 'Choose a valid post-claim action.' })

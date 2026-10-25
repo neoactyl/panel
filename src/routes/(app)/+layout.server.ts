@@ -4,6 +4,8 @@ import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { isAdmin } from '#lib/server/auth/admin.ts';
 import { syncDiscordMembership } from '#lib/server/integrations/discord.ts';
 import { getBranding, getPublicSettings } from '#lib/server/config/settings.ts';
+import { getRenewalSettings } from '#lib/server/billing/billing.ts';
+import { getCreditBalance } from '#lib/server/billing/credits.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -22,6 +24,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	void syncDiscordMembership(locals.user.id).catch(() => undefined);
 
 	const publicSettings = getPublicSettings();
+	const renewal = getRenewalSettings();
+	const credits = renewal.enabled ? await getCreditBalance(locals.user.id) : null;
 
 	return {
 		user: locals.user,
@@ -29,6 +33,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		branding: getBranding(),
 		nav: publicSettings.nav,
 		features: publicSettings.features,
+		credits,
+		currency: renewal.currency,
 		appBlueprint
 	};
 };

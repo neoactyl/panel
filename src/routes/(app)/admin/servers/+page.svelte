@@ -1,10 +1,13 @@
 <script lang="ts">
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
+	import IconPencil from '@tabler/icons-svelte/icons/pencil';
+	import { enhance } from '$app/forms';
 	import type { ServerState } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+	let editing = $state<string | null>(null);
 
 	const styles: Record<ServerState, string> = {
 		running: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
@@ -26,6 +29,16 @@
 		<div class="flex items-center gap-2 border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
 			<IconAlertTriangle class="h-4 w-4" />
 			{data.panic}
+		</div>
+	{/if}
+
+	{#if form?.message || form?.success}
+		<div
+			class="border px-3 py-2 text-sm {form?.message
+				? 'border-red-500/30 bg-red-500/10 text-red-200'
+				: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}"
+		>
+			{form?.message ?? form?.success}
 		</div>
 	{/if}
 
@@ -57,7 +70,17 @@
 								<p class="mt-1 font-mono text-[10px] text-white/35">{server.id}</p>
 							</div>
 						</div>
-						<span class="text-xs text-white/40">{server.node}</span>
+						<div class="flex items-center gap-2">
+							<span class="text-xs text-white/40">{server.node}</span>
+							<button
+								type="button"
+								onclick={() => (editing = editing === server.id ? null : server.id)}
+								class="flex items-center gap-1.5 border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+							>
+								<IconPencil class="h-3.5 w-3.5" />
+								Resources
+							</button>
+						</div>
 					</div>
 
 					<div class="mt-4 grid gap-3 sm:grid-cols-3">
@@ -78,6 +101,72 @@
 							</p>
 						</div>
 					</div>
+
+					{#if editing === server.id}
+						<form
+							method="POST"
+							action="?/updateResources"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									await update();
+									if (result.type === 'success') editing = null;
+								}}
+							class="mt-4 grid gap-3 border border-white/10 bg-[#121212] p-4 sm:grid-cols-4"
+						>
+							<input type="hidden" name="serverId" value={server.id} />
+							<label class="block">
+								<span class="text-[10px] tracking-wider text-white/35 uppercase">CPU %</span>
+								<input
+									name="cpu"
+									type="number"
+									min="1"
+									step="1"
+									required
+									value={server.cpu.limit}
+									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+								/>
+							</label>
+							<label class="block">
+								<span class="text-[10px] tracking-wider text-white/35 uppercase">Memory MB</span>
+								<input
+									name="ram"
+									type="number"
+									min="1"
+									step="1"
+									required
+									value={server.memory.limit}
+									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+								/>
+							</label>
+							<label class="block">
+								<span class="text-[10px] tracking-wider text-white/35 uppercase">Disk MB</span>
+								<input
+									name="disk"
+									type="number"
+									min="1"
+									step="1"
+									required
+									value={server.disk.limit}
+									class="mt-1 w-full border border-white/10 bg-[#0f0f0f] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+								/>
+							</label>
+							<div class="flex items-end gap-2">
+								<button
+									type="submit"
+									class="border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
+								>
+									Save
+								</button>
+								<button
+									type="button"
+									onclick={() => (editing = null)}
+									class="px-2 py-2 text-xs font-semibold text-white/45 transition hover:text-white"
+								>
+									Cancel
+								</button>
+							</div>
+						</form>
+					{/if}
 				</div>
 			{/each}
 		</div>

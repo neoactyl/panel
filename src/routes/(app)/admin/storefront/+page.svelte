@@ -22,8 +22,8 @@
 					<h2 class="text-sm font-bold text-white">Storefront items</h2>
 				</div>
 				<p class="mt-1 text-xs text-white/40">
-					Full-server items provision a new server. Resource items add CPU, memory, and disk to an
-					existing server.
+					Full-server items provision a new server. Resource items add CPU, memory, and disk to the
+					buyer's resource quota.
 				</p>
 			</div>
 			<a

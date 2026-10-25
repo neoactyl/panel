@@ -10,6 +10,7 @@
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
 	import IconCheck from '@tabler/icons-svelte/icons/check';
 	import IconX from '@tabler/icons-svelte/icons/x';
+	import IconCoins from '@tabler/icons-svelte/icons/coins';
 	import { uploads } from '#lib/client/uploads.svelte.ts';
 	import type { LayoutProps } from './$types';
 
@@ -55,6 +56,18 @@
 			<span class="text-xs font-semibold tracking-widest text-white/40 uppercase">
 				{data.branding.name}
 			</span>
+
+			{#if data.credits !== null}
+				<a
+					href="/storefront"
+					title="Credits remaining"
+					class="ml-auto flex items-center gap-2 border border-white/10 bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
+				>
+					<IconCoins class="h-3.5 w-3.5 text-amber-300/70" />
+					<span class="font-semibold text-white">{data.credits.toLocaleString()}</span>
+					<span class="text-white/45">{data.currency}</span>
+				</a>
+			{/if}
 		</header>
 
 		<main class="mx-auto w-full max-w-5xl flex-1 px-6 py-8">

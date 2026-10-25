@@ -44,6 +44,16 @@ export const getCreditBalance = async (userId: string) => {
 };
 
 const applyEntry = async (entry: CreditEntry, delta: number) => {
+	const existing = await db
+		.select({ balanceAfter: creditTransaction.balanceAfter })
+		.from(creditTransaction)
+		.where(eq(creditTransaction.reference, entry.reference))
+		.get();
+
+	if (existing) {
+		return { applied: false as const, balance: existing.balanceAfter };
+	}
+
 	const account = await db
 		.select()
 		.from(creditAccount)
@@ -58,16 +68,6 @@ const applyEntry = async (entry: CreditEntry, delta: number) => {
 			`Not enough credits. This action needs ${Math.abs(delta)} but your balance is ${balance}.`,
 			'INSUFFICIENT_CREDITS'
 		);
-	}
-
-	const existing = await db
-		.select({ balanceAfter: creditTransaction.balanceAfter })
-		.from(creditTransaction)
-		.where(eq(creditTransaction.reference, entry.reference))
-		.get();
-
-	if (existing) {
-		return { applied: false as const, balance: existing.balanceAfter };
 	}
 
 	const now = new Date();

@@ -10,6 +10,8 @@ const statements = [
 		memory INTEGER,
 		disk INTEGER,
 		max_servers INTEGER,
+		max_databases INTEGER,
+		max_allocations INTEGER,
 		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
 	sql`CREATE TABLE IF NOT EXISTS activity_log (
@@ -248,6 +250,21 @@ const statements = [
 	)`,
 ];
 
+const migrateUserQuota = async () => {
+	const columns = new Set(
+		(
+			await db.all<{ name: string }>(sql`SELECT name FROM pragma_table_info('user_quota')`)
+		).map(({ name }) => name)
+	);
+
+	if (!columns.has('max_databases')) {
+		await db.run(sql`ALTER TABLE user_quota ADD COLUMN max_databases INTEGER`);
+	}
+	if (!columns.has('max_allocations')) {
+		await db.run(sql`ALTER TABLE user_quota ADD COLUMN max_allocations INTEGER`);
+	}
+};
+
 const migrateStorefrontItems = async () => {
 	const columns = new Set(
 		(await db.all<{ name: string }>(sql`SELECT name FROM pragma_table_info('storefront_item')`)).map(
@@ -366,6 +383,7 @@ export const ensureOperationalSchema = () => {
 				await db.run(statement);
 			}
 
+			await migrateUserQuota();
 			await migrateStorefrontItems();
 			await migrateErrorLog();
 			await migrateSoftwareSettings();

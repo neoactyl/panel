@@ -26,6 +26,8 @@
 	let cpu = $state('');
 	let ram = $state('');
 	let disk = $state('');
+	let databases = $state('');
+	let allocations = $state('');
 
 	let nestId = $state<number | null>(null);
 	let eggId = $state<number | null>(null);
@@ -114,6 +116,11 @@
 		return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : undefined;
 	};
 
+	const nonNegative = (value: string) => {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+	};
+
 	const freeMemory = $derived(
 		selectedNode && selectedNode.memory.limit > 0
 			? Math.max(0, selectedNode.memory.limit - selectedNode.memory.allocated)
@@ -153,6 +160,10 @@
 	const requestedCpu = $derived(positive(cpu) ?? defaultCpu);
 	const requestedRam = $derived(positive(ram) ?? defaultRam);
 	const requestedDisk = $derived(positive(disk) ?? defaultDisk);
+	const requestedDatabases = $derived(nonNegative(databases));
+	const requestedAllocations = $derived(nonNegative(allocations));
+	const databaseLimit = $derived(data.quota?.maxDatabases ?? 0);
+	const allocationLimit = $derived(data.quota?.maxAllocations ?? 0);
 	const noResources = $derived(requestedCpu < 1 || requestedRam < 1 || requestedDisk < 1);
 	const policyCpuExceeds = $derived(
 		selectedEgg !== null && (requestedCpu < minimumCpu || requestedCpu > maximumCpu)
@@ -176,8 +187,18 @@
 		data.remaining !== null && requestedRam > data.remaining.memory
 	);
 	const quotaDiskExceeds = $derived(data.remaining !== null && requestedDisk > data.remaining.disk);
+	const quotaDatabasesExceed = $derived(
+		databaseLimit > 0 && requestedDatabases > databaseLimit
+	);
+	const quotaAllocationsExceed = $derived(
+		allocationLimit > 0 && requestedAllocations > allocationLimit
+	);
 	const quotaExceeds = $derived(
-		quotaCpuExceeds || quotaMemoryExceeds || quotaDiskExceeds
+		quotaCpuExceeds ||
+			quotaMemoryExceeds ||
+			quotaDiskExceeds ||
+			quotaDatabasesExceed ||
+			quotaAllocationsExceed
 	);
 	const resourcesFit = $derived(
 		!memoryExceeds && !diskExceeds && !quotaExceeds && !policyExceeds
@@ -374,6 +395,53 @@
 					<p class="mt-2 text-xs text-white/30">Leave blank to allocate all remaining resources.</p>
 					{#if noResources}
 						<p class="mt-1 text-xs text-red-300">No resources remain to allocate.</p>
+					{/if}
+				</div>
+
+				<div>
+					<span class="text-xs font-semibold tracking-widest text-white/40 uppercase">
+						Databases &amp; extra allocations
+					</span>
+					<div class="mt-2 grid gap-3 sm:grid-cols-2">
+						<label class="flex flex-col gap-1.5">
+							<span class="text-xs text-white/50">Databases</span>
+							<input
+								bind:value={databases}
+								type="number"
+								min="0"
+								step="1"
+								placeholder="0"
+								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+							/>
+							<span class="text-[11px] text-white/30">
+								{databaseLimit > 0 ? `Up to ${databaseLimit}` : 'Unlimited'} · 0 disables
+								databases
+							</span>
+						</label>
+						<label class="flex flex-col gap-1.5">
+							<span class="text-xs text-white/50">Extra allocations (ports)</span>
+							<input
+								bind:value={allocations}
+								type="number"
+								min="0"
+								step="1"
+								placeholder="0"
+								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+							/>
+							<span class="text-[11px] text-white/30">
+								{allocationLimit > 0 ? `Up to ${allocationLimit}` : 'Unlimited'} · 0 leaves only
+								the primary IP
+							</span>
+						</label>
+					</div>
+					<p class="mt-2 text-xs text-white/30">
+						Extra allocations do not include the server's primary address. Leave these at 0 to
+						disable databases and additional ports.
+					</p>
+					{#if quotaDatabasesExceed || quotaAllocationsExceed}
+						<p class="mt-1 text-xs text-red-300">
+							Database or allocation request exceeds your per-server limit.
+						</p>
 					{/if}
 				</div>
 			</div>
@@ -662,6 +730,22 @@
 							CPU {requestedCpu}% A��� RAM {requestedRam} MB A��� Disk {requestedDisk} MB
 						</dd>
 					</div>
+					<div class="flex items-start justify-between gap-4 px-4 py-3">
+						<dt class="text-xs font-semibold tracking-widest text-white/40 uppercase">
+							Databases
+						</dt>
+						<dd class="text-right text-sm text-white/60">
+							{requestedDatabases > 0 ? requestedDatabases : 'Disabled'}
+						</dd>
+					</div>
+					<div class="flex items-start justify-between gap-4 px-4 py-3">
+						<dt class="text-xs font-semibold tracking-widest text-white/40 uppercase">
+							Extra allocations
+						</dt>
+						<dd class="text-right text-sm text-white/60">
+							{requestedAllocations > 0 ? `${requestedAllocations} extra` : 'Primary only'}
+						</dd>
+					</div>
 					{#if variables.length > 0}
 						<div class="flex items-start justify-between gap-4 px-4 py-3">
 							<dt class="text-xs font-semibold tracking-widest text-white/40 uppercase">
@@ -745,6 +829,8 @@
 				<input type="hidden" name="cpu" value={cpu} />
 				<input type="hidden" name="ram" value={ram} />
 				<input type="hidden" name="disk" value={disk} />
+				<input type="hidden" name="databases" value={String(requestedDatabases)} />
+				<input type="hidden" name="allocations" value={String(requestedAllocations)} />
 				{#each variables as variable (variable.key)}
 					<input
 						type="hidden"

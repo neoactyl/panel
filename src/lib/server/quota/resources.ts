@@ -52,7 +52,14 @@ export const maxServersPerUser = () => getNumber('server.maxPerUser');
 export const assertWithinQuota = async (
 	adapter: Adapter,
 	input: CreateServer,
-	limits?: { cpu: number; memory: number; disk: number; maxServers: number }
+	limits?: {
+		cpu: number;
+		memory: number;
+		disk: number;
+		maxServers: number;
+		maxDatabases: number;
+		maxAllocations: number;
+	}
 ) => {
 	if (!adapter.capabilities.accounts.link || !getBool('panel.linkAccounts')) return;
 
@@ -84,6 +91,21 @@ export const assertWithinQuota = async (
 	if (requested.disk > quota.disk - used.disk) {
 		exceeded.push(
 			`disk ${requested.disk} MB (${Math.max(0, quota.disk - used.disk)} MB left)`
+		);
+	}
+
+	const requestedDatabases = Math.max(0, Math.floor(input.databases ?? 0));
+	const requestedAllocations = Math.max(0, Math.floor(input.allocations ?? 0));
+
+	if (quota.maxDatabases > 0 && requestedDatabases > quota.maxDatabases) {
+		exceeded.push(
+			`${requestedDatabases} databases (${quota.maxDatabases} allowed per server)`
+		);
+	}
+
+	if (quota.maxAllocations > 0 && requestedAllocations > quota.maxAllocations) {
+		exceeded.push(
+			`${requestedAllocations} extra allocations (${quota.maxAllocations} allowed per server)`
 		);
 	}
 

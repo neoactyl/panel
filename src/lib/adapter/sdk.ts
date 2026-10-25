@@ -49,6 +49,8 @@ export type CreateServer = {
   ram?: number;
   disk?: number;
   cpu?: number;
+  databases?: number;
+  allocations?: number;
   softwareGroup?: number;
   software?: number;
   variables?: Record<string, string>;

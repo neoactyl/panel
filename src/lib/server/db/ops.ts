@@ -15,6 +15,8 @@ export const userQuota = sqliteTable('user_quota', {
 	memory: integer('memory'),
 	disk: integer('disk'),
 	maxServers: integer('max_servers'),
+	maxDatabases: integer('max_databases'),
+	maxAllocations: integer('max_allocations'),
 	updatedAt: timestamp('updated_at')
 });
 
