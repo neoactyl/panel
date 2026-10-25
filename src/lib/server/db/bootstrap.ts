@@ -112,6 +112,19 @@ const statements = [
 	)`,
 	sql`CREATE INDEX IF NOT EXISTS credit_transaction_user_idx ON credit_transaction (user_id, created_at)`,
 	sql`CREATE INDEX IF NOT EXISTS credit_transaction_created_idx ON credit_transaction (created_at)`,
+	sql`CREATE TABLE IF NOT EXISTS credit_topup_option (
+		id TEXT PRIMARY KEY NOT NULL,
+		label TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		badge TEXT NOT NULL DEFAULT '',
+		credits INTEGER NOT NULL,
+		price_cents INTEGER NOT NULL,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		sort_order INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+	sql`CREATE INDEX IF NOT EXISTS credit_topup_option_sort_idx ON credit_topup_option (sort_order, created_at)`,
 	sql`CREATE TABLE IF NOT EXISTS server_billing (
 		id TEXT PRIMARY KEY NOT NULL,
 		server_id TEXT NOT NULL UNIQUE,
@@ -355,6 +368,18 @@ const migrateSoftwareSettings = async () => {
 	}
 };
 
+const migrateUsers = async () => {
+	const columns = new Set(
+		(await db.all<{ name: string }>(sql`SELECT name FROM pragma_table_info('user')`)).map(
+			({ name }) => name
+		)
+	);
+
+	if (!columns.has('stripe_customer_id')) {
+		await db.run(sql`ALTER TABLE user ADD COLUMN stripe_customer_id TEXT`);
+	}
+};
+
 const migrateEarnTaskCompletion = async () => {
 	const columns = new Set(
 		(
@@ -383,6 +408,7 @@ export const ensureOperationalSchema = () => {
 				await db.run(statement);
 			}
 
+			await migrateUsers();
 			await migrateUserQuota();
 			await migrateStorefrontItems();
 			await migrateErrorLog();

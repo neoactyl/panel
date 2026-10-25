@@ -12,6 +12,7 @@
 	import IconPackage from '@tabler/icons-svelte/icons/package';
 	import IconListDetails from '@tabler/icons-svelte/icons/list-details';
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
+	import IconCreditCard from '@tabler/icons-svelte/icons/credit-card';
 	import IconActivity from '@tabler/icons-svelte/icons/activity';
 
 	let {
@@ -31,6 +32,7 @@
 				{ href: '/admin/servers', label: 'Servers', icon: IconServer, exact: false },
 				{ href: '/admin/storefront', label: 'Storefront', icon: IconShoppingBag, exact: false },
 				{ href: '/admin/economy', label: 'Economy', icon: IconCoin, exact: false },
+				{ href: '/admin/credits', label: 'Credit top-ups', icon: IconCreditCard, exact: false },
 				{ href: '/admin/software', label: 'Software', icon: IconPackage, exact: false },
 				{ href: '/admin/system', label: 'System', icon: IconActivity, exact: false },
 				{ href: '/admin/logs', label: 'Logs', icon: IconListDetails, exact: false }

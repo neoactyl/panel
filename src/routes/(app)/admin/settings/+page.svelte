@@ -48,7 +48,7 @@
 	<title>Settings - {data.branding.name}</title>
 </svelte:head>
 
-<form method="POST" use:settingsEnhance class="space-y-4">
+<form method="POST" use:settingsEnhance class="space-y-4" enctype="multipart/form-data">
 	{#if $settingsMessage && typeof $settingsMessage !== 'string'}
 		<div
 			class="border px-3 py-2 text-sm {$settingsMessage.status === 'error'

@@ -59,8 +59,8 @@
 
 			{#if data.credits !== null}
 				<a
-					href="/storefront"
-					title="Credits remaining"
+					href="/credits"
+					title="Credits remaining — buy more"
 					class="ml-auto flex items-center gap-2 border border-white/10 bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
 				>
 					<IconCoins class="h-3.5 w-3.5 text-amber-300/70" />

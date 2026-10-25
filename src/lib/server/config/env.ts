@@ -16,6 +16,8 @@ export const serverEnv = createEnv({
     SETTINGS_ENCRYPTION_KEY: z.string().min(32).optional(),
     DISCORD_CLIENT_ID: optionalString,
     DISCORD_CLIENT_SECRET: optionalString,
+    STRIPE_SECRET_KEY: optionalString,
+    STRIPE_WEBHOOK_SECRET: optionalString,
   },
   runtimeEnv: env,
   emptyStringAsUndefined: true,

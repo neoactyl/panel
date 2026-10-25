@@ -23,5 +23,15 @@ export const variables = defineEnvVars({
 	DISCORD_CLIENT_SECRET: {
 		description: 'Discord OAuth client secret, used by Better Auth to enable "Sign in with Discord". Leave unset to disable Discord sign-in.',
 		schema: (value) => value ?? undefined
+	},
+	STRIPE_SECRET_KEY: {
+		description:
+			'Optional Stripe secret key for credit top-ups. The admin Settings page overrides this value.',
+		schema: (value) => value ?? undefined
+	},
+	STRIPE_WEBHOOK_SECRET: {
+		description:
+			'Optional Stripe webhook signing secret for /api/auth/stripe/webhook. The admin Settings page overrides this value.',
+		schema: (value) => value ?? undefined
 	}
 });

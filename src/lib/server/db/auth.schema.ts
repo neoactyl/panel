@@ -20,6 +20,7 @@ export const user = sqliteTable("user", {
   banned: integer("banned", { mode: "boolean" }).default(false),
   banReason: text("ban_reason"),
   banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
+  stripeCustomerId: text("stripe_customer_id"),
 });
 
 export const session = sqliteTable(

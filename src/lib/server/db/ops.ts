@@ -97,6 +97,28 @@ export const creditTransaction = sqliteTable(
 	]
 );
 
+export const creditTopupOption = sqliteTable(
+	'credit_topup_option',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		label: text('label').notNull(),
+		description: text('description').notNull().default(''),
+		badge: text('badge').notNull().default(''),
+		credits: integer('credits').notNull(),
+		priceCents: integer('price_cents').notNull(),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+		sortOrder: integer('sort_order').notNull().default(0),
+		createdAt: timestamp('created_at'),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => new Date())
+			.notNull()
+	},
+	(table) => [index('credit_topup_option_sort_idx').on(table.sortOrder, table.createdAt)]
+);
+
 export const serverBilling = sqliteTable(
 	'server_billing',
 	{
