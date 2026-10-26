@@ -6,6 +6,7 @@ import { getAuth } from "#lib/server/auth/auth.ts";
 import { maybeRunRenewals } from "#lib/server/billing/billing.ts";
 import { ensureOperationalSchema } from "#lib/server/db/bootstrap.ts";
 import { serverEnv } from "#lib/server/config/env.ts";
+import { startDiscordBot, stopDiscordBot } from "#lib/server/discord/bot.ts";
 import { logActivity, logError } from "#lib/server/system/logs.ts";
 import { recordRequest } from "#lib/server/system/metrics.ts";
 import {
@@ -14,6 +15,7 @@ import {
 } from "#lib/server/auth/panel-auth.ts";
 import { getNumber, loadSettings } from "#lib/server/config/settings.ts";
 import { svelteKitHandler } from "better-auth/svelte-kit";
+import {createBanner} from "#lib/taag.ts"
 
 let hasInitialized = false;
 
@@ -60,19 +62,14 @@ const runRenewalsOnce = async () => {
 
 const RENEWALS_INTERVAL_MS = 60_000;
 
-const banner = String.raw`\033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▄ \033[0;37m \033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▀█\033[0;37m \033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▄ \033[0;37m \033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▄ \033[0;37m \033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▄ \033[0;37m \033[0;32m \033[0;92m▄▀▀▀▀\033[0;32m▀█\033[0;37m \033[0;92m█▀▀\033[0;32m█ \033[0;92m▀\033[0;32m▀█\033[0;37m \033[0;92m█▀▀\033[0;92;42m▓\033[0;32m    \033[0m
-  \033[0;92m█\033[0;32m      █\033[0;37m \033[0;92m█\033[0;32m      ▓\033[0;37m \033[0;92m█\033[0;32m      █\033[0;37m \033[0;92m█\033[0;32m      █\033[0;37m \033[0;92m█\033[0;32m      █\033[0;37m \033[0;92m█\033[0;32m      ▓\033[0;37m \033[0;92m█\033[0;32m  █   █\033[0;37m \033[0;92m█\033[0;32m  \033[0;92;42m░\033[0;32m    \033[0m
-  \033[0;92m█\033[0;32m  \033[0;90;42m░\033[0;32m   \033[0;90m█\033[0;37m \033[0;92m█\033[0;32m  \033[0;92m█\033[0;92;42m▀\033[0;90;42m▀\033[0;90m▀▀\033[0;37m \033[0;92m█\033[0;32m  \033[0;92m█\033[0;92;42m▀\033[0;32m  \033[0;90m█\033[0;37m \033[0;92m█\033[0;32m  \033[0;92m█\033[0;92;42m▀\033[0;32m  \033[0;90m█\033[0;37m \033[0;92m█\033[0;32m  \033[0;92m█\033[0;92;42m▀\033[0;32m  \033[0;90m█\033[0;37m \033[0;92m█\033[0;32m  \033[0;92m█▀\033[0;32m▀▀\033[0;90m▀\033[0;37m \033[0;92m▓\033[0;32m      \033[0;90m█\033[0;37m \033[0;92m█\033[0;32m  █    \033[0m
-  \033[0;92m▓\033[0;32m  \033[0;90;42m░\033[0;32m   \033[0;90m█\033[0;37m \033[0;92m▓\033[0;32m  █\033[0;90;42m▄\033[0;90m█▄▄\033[0;37m \033[0;92m▓\033[0;32m  █\033[0;90;42m▄\033[0;32m  \033[0;90m█\033[0;37m \033[0;92m▓\033[0;32m  ▀\033[0;90m▀\033[0;32m  \033[0;90m▓\033[0;37m \033[0;92m▓\033[0;32m  █\033[0;90;42m▄\033[0;90m▀▀█\033[0;37m \033[0;92m▓\033[0;32m  █    \033[0;37m \033[0;92m▄▄▄\033[0;32m▄▄  \033[0;90m▓\033[0;37m \033[0;92m▓\033[0;32m  █\033[0;90;42m▄\033[0;90m▀▀█\033[0m
-  \033[0;92m▒\033[0;32m  \033[0;90;42m▒\033[0;32m   \033[0;90m▓\033[0;37m \033[0;92m▒\033[0;32m      \033[0;90m▒\033[0;37m \033[0;92m▒\033[0;32m  \033[0;90m▀▀\033[0;32m  \033[0;90m▒\033[0;37m \033[0;92m▒\033[0;32m  \033[0;90m█\033[0;32m   \033[0;90m▒\033[0;37m \033[0;92m▒\033[0;32m  \033[0;90m▀▀\033[0;32m  \033[0;90m▒\033[0;37m \033[0;92m▒\033[0;32m  \033[0;90;42m▓\033[0;32m    \033[0;37m \033[0;92m▒\033[0;32m      \033[0;90m▒\033[0;37m \033[0;92m▒\033[0;32m  \033[0;90m▀▀\033[0;32m  \033[0;90m▒\033[0m
-  \033[0;90;42m▒\033[0;90m▄▄\033[0;90;42m▓\033[0;32m \033[0;90m▄▄▒\033[0;37m \033[0;32m \033[0;90m▀▄▄▄▄▄█\033[0;37m \033[0;32m \033[0;90m▀▄▄▄▄▀\033[0;32m \033[0;37m \033[0;92m░\033[0;90m▄▄█\033[0;32m \033[0;90m▄▄░\033[0;37m \033[0;32m \033[0;90m▀▄▄▄▄▀\033[0;32m \033[0;37m \033[0;90;42m▓\033[0;90m▄▄█\033[0;32m    \033[0;37m \033[0;92m░\033[0;90m▄▄▄▄▄▀\033[0;32m \033[0;37m \033[0;32m \033[0;90m▀▄▄▄▄▀\033[0;32m \033[0m
-`;
-
 if (!building && !hasInitialized) {
   hasInitialized = true;
-  console.log(banner.replaceAll("\\033", "\x1b"));
+  console.log(createBanner())
 
   fireAndForget(runRenewalsOnce, "renewals");
+  void startDiscordBot().catch((cause) => {
+    console.error("[discord] Unable to start the embedded invite bot.", cause);
+  });
   const renewalsTimer = setInterval(
     () => fireAndForget(runRenewalsOnce, "renewals"),
     RENEWALS_INTERVAL_MS,
@@ -81,6 +78,9 @@ if (!building && !hasInitialized) {
 
   (process as NodeJS.EventEmitter).once("sveltekit:shutdown", async () => {
     clearInterval(renewalsTimer);
+    await stopDiscordBot().catch((cause) => {
+      console.error("[discord] Unable to stop the embedded invite bot.", cause);
+    });
     await Promise.race([
       Promise.allSettled([...inflight]),
       new Promise((resolve) => setTimeout(resolve, 10_000)),

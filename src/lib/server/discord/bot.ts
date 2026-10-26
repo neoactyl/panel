@@ -1,331 +1,583 @@
-import type {
-	Client,
-	Guild,
-	GuildMember,
-	Invite
-} from 'discord.js';
-import type { DiscordInviteEvent } from '#lib/server/rewards/invites.ts';
+import type { Client, Guild, GuildMember, Invite } from "discord.js";
+import type { DiscordInviteEvent } from "#lib/server/rewards/invites.ts";
+import { handleInteraction, registerCommands } from "./commands.ts";
 
-type DiscordRuntime = typeof import('discord.js');
+type CachedInvite = {
+  uses: number;
+  maxUses: number;
+  inviterId: string | null;
+  deletedAt: number | null;
+};
+
+type InviteMap = Map<string, CachedInvite>;
+
 type BotState = {
-	client: Client | null;
-	starting: boolean;
-	started: boolean;
-	attempted: boolean;
-	warned: boolean;
-	disabled: boolean;
+  client: Client | null;
+  ready: boolean;
+  starting: Promise<Client | null> | null;
+  generation: number;
+  warnedReason: string | null;
+  inviteCache: Map<string, InviteMap>;
+  queue: DiscordInviteEvent[];
+  draining: boolean;
+  joinChain: Promise<void>;
 };
 
 const botGlobals = globalThis as typeof globalThis & {
-	__neoactylDiscordBot?: BotState;
+  __neoactylDiscordBotV2?: BotState;
 };
 
-const state = (botGlobals.__neoactylDiscordBot ??= {
-	client: null,
-	starting: false,
-	started: false,
-	attempted: false,
-	warned: false,
-	disabled: false
+const state = (botGlobals.__neoactylDiscordBotV2 ??= {
+  client: null,
+  ready: false,
+  starting: null,
+  generation: 0,
+  warnedReason: null,
+  inviteCache: new Map(),
+  queue: [],
+  draining: false,
+  joinChain: Promise.resolve(),
 });
 
-const inviteCache = new Map<string, Map<string, number>>();
-const queue: DiscordInviteEvent[] = [];
-let draining = false;
+const LOGIN_TIMEOUT_MS = 30_000;
+const READY_TIMEOUT_MS = 30_000;
+const MAX_CONNECT_ATTEMPTS = 5;
+const DELETED_INVITE_WINDOW_MS = 15_000;
+const MAX_QUEUE_SIZE = 1000;
+const DEBUG =
+  process.env.DISCORD_DEBUG === "1" || process.env.DISCORD_DEBUG === "true";
+
+const FATAL_ERROR_CODES = new Set([
+  "TokenInvalid",
+  "DisallowedIntents",
+  "TokenMissing",
+]);
 
 const sleep = (milliseconds: number) =>
-	new Promise((resolve) => setTimeout(resolve, milliseconds));
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
-const refreshInvites = async (guild: Guild, manageGuildPermission: bigint) => {
-	const me = guild.members.me;
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms.`)),
+      ms,
+    );
 
-	if (!me?.permissions.has(manageGuildPermission)) {
-		console.warn(`[discord] Missing Manage Guild permission in ${guild.id}; cannot track invites.`);
-		return new Map<string, number>();
-	}
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (cause) => {
+        clearTimeout(timer);
+        reject(cause);
+      },
+    );
+  });
 
-	const invites = await guild.invites.fetch();
-	const next = new Map<string, number>();
+const errorCode = (cause: unknown) =>
+  typeof cause === "object" && cause !== null && "code" in cause
+    ? String(cause.code)
+    : "";
 
-	for (const [code, invite] of invites) {
-		next.set(code, invite.uses ?? 0);
-	}
+const warnOnce = (reason: string, message: string) => {
+  if (state.warnedReason === reason) return;
 
-	inviteCache.set(guild.id, next);
-	return next;
+  state.warnedReason = reason;
+  console.info(message);
 };
 
+const toCache = (invites: Iterable<[string, Invite]>): InviteMap => {
+  const next: InviteMap = new Map();
+
+  for (const [code, invite] of invites) {
+    next.set(code, {
+      uses: invite.uses ?? 0,
+      maxUses: invite.maxUses ?? 0,
+      inviterId: invite.inviter?.id ?? null,
+      deletedAt: null,
+    });
+  }
+
+  return next;
+};
+
+const canManageGuild = async (guild: Guild, manageGuild: bigint) => {
+  const me =
+    guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  return Boolean(me?.permissions.has(manageGuild));
+};
+
+const refreshInvites = async (
+  guild: Guild,
+  manageGuild: bigint,
+): Promise<InviteMap> => {
+  if (!(await canManageGuild(guild, manageGuild))) {
+    console.warn(
+      `[discord] Missing Manage Server permission in ${guild.id}; cannot track invites.`,
+    );
+    return new Map();
+  }
+
+  const invites = await guild.invites.fetch();
+  const next = toCache(invites.entries());
+
+  state.inviteCache.set(guild.id, next);
+  return next;
+};
+
+/**
+ * Work out which invite was used by diffing the cached counts with a fresh fetch.
+ * Returns null when there is no candidate or the result is ambiguous.
+ */
 const findInviter = (
-	previous: Map<string, number>,
-	invites: Map<string, Invite>
+  previous: InviteMap,
+  current: Map<string, Invite>,
 ): string | null => {
-	let best: { inviterId: string; uses: number } | null = null;
+  const candidates: { code: string; inviterId: string }[] = [];
+  const now = Date.now();
 
-	for (const [code, invite] of invites) {
-		const before = previous.get(code) ?? 0;
-		const uses = invite.uses ?? 0;
-		const delta = uses - before;
+  // Invites whose use count went up (or that are new and already used).
+  for (const [code, invite] of current) {
+    const before = previous.get(code)?.uses ?? 0;
+    const uses = invite.uses ?? 0;
 
-		if (delta > 0 && invite.inviter && (!best || delta > best.uses)) {
-			best = { inviterId: invite.inviter.id, uses: delta };
-		}
-	}
+    if (uses > before && invite.inviter) {
+      candidates.push({ code, inviterId: invite.inviter.id });
+    }
+  }
 
-	return best?.inviterId ?? null;
+  // Invites that vanished: a max-use invite is deleted by Discord when its last use is consumed.
+  for (const [code, cached] of previous) {
+    if (current.has(code)) continue;
+    if (!cached.inviterId || cached.maxUses <= 0) continue;
+    if (!cached.deletedAt || now - cached.deletedAt > DELETED_INVITE_WINDOW_MS)
+      continue;
+    if (cached.uses + 1 < cached.maxUses) continue;
+
+    candidates.push({ code, inviterId: cached.inviterId });
+  }
+
+  if (candidates.length === 1) return candidates[0].inviterId;
+
+  if (candidates.length > 1) {
+    console.warn(
+      `[discord] Ambiguous invite attribution (${candidates.map((c) => c.code).join(", ")}); skipping.`,
+    );
+  }
+
+  return null;
 };
 
-const deliverEvent = async (event: DiscordInviteEvent) => {	const { recordInviteJoin, recordInviteLeave } = await import(
-		'#lib/server/rewards/invites.ts'
-	);
-	let lastError: unknown;
+/* -------------------------------------------------------------------------- */
+/* Event delivery                                                             */
+/* -------------------------------------------------------------------------- */
 
-	for (let attempt = 1; attempt <= 3; attempt += 1) {
-		try {
-			if (event.type === 'member_join') {
-				const result = await recordInviteJoin(event);
+const deliverEvent = async (event: DiscordInviteEvent) => {
+  const { recordInviteJoin, recordInviteLeave } =
+    await import("#lib/server/rewards/invites.ts");
+  let lastError: unknown;
 
-				if (!result.recorded) {
-					console.info(`[discord] Invite not recorded (${result.reason}) for ${event.memberId}.`);
-				}
-			} else {
-				await recordInviteLeave(event);
-			}
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      if (event.type === "member_join") {
+        const result = await recordInviteJoin(event);
 
-			return;
-		} catch (cause) {
-			lastError = cause;
+        if (!result.recorded) {
+          console.info(
+            `[discord] Invite not recorded (${result.reason}) for ${event.memberId}.`,
+          );
+        }
+      } else {
+        await recordInviteLeave(event);
+      }
 
-			if (attempt < 3) {
-				await sleep(attempt * 1000);
-			}
-		}
-	}
+      return;
+    } catch (cause) {
+      lastError = cause;
 
-	throw lastError instanceof Error ? lastError : new Error('Discord event delivery failed.');
+      if (attempt < 3) await sleep(attempt * 1000);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Discord event delivery failed.");
 };
 
 const drainQueue = async () => {
-	if (draining) return;
+  if (state.draining) return;
 
-	draining = true;
+  state.draining = true;
 
-	while (queue.length > 0) {
-		const event = queue.shift();
+  try {
+    while (state.queue.length > 0) {
+      const event = state.queue.shift();
 
-		if (!event) continue;
+      if (!event) continue;
 
-		try {
-			await deliverEvent(event);
-		} catch (cause) {
-			console.error('[discord] Unable to record an invite event after retries.', cause);
-		}
-	}
-
-	draining = false;
+      try {
+        await deliverEvent(event);
+      } catch (cause) {
+        console.error(
+          "[discord] Unable to record an invite event after retries.",
+          cause,
+        );
+      }
+    }
+  } finally {
+    state.draining = false;
+  }
 };
 
 const enqueue = (event: DiscordInviteEvent) => {
-	queue.push(event);
-	void drainQueue();
+  if (state.queue.length >= MAX_QUEUE_SIZE) {
+    console.error("[discord] Event queue is full; dropping the oldest event.");
+    state.queue.shift();
+  }
+
+  state.queue.push(event);
+  void drainQueue();
 };
 
-const handleMemberAdd = async (
-	member: GuildMember,
-	trackedGuildId: string,
-	manageGuildPermission: bigint
+const processMemberAdd = async (member: GuildMember, manageGuild: bigint) => {
+  const guild = member.guild;
+  const previous =
+    state.inviteCache.get(guild.id) ?? new Map<string, CachedInvite>();
+
+  let current: Map<string, Invite>;
+
+  try {
+    current = new Map((await guild.invites.fetch()).entries());
+  } catch (cause) {
+    console.error(
+      "[discord] Unable to fetch invites after a member joined.",
+      cause,
+    );
+    return;
+  }
+
+  let inviterId = findInviter(previous, current);
+
+  if (!inviterId) {
+    // Discord can lag slightly in updating invite counters.
+    await sleep(1000);
+
+    try {
+      current = new Map((await guild.invites.fetch()).entries());
+      inviterId = findInviter(previous, current);
+    } catch (cause) {
+      console.error("[discord] Unable to retry invite lookup.", cause);
+    }
+  }
+
+  // Always rebuild the cache from the freshest data we have.
+  state.inviteCache.set(guild.id, toCache(current.entries()));
+
+  if (!inviterId) {
+    console.warn(
+      `[discord] Could not attribute an inviter for member ${member.id}.`,
+    );
+    return;
+  }
+
+  if (inviterId === member.id) return;
+
+  enqueue({
+    type: "member_join",
+    guildId: guild.id,
+    memberId: member.id,
+    inviterId,
+    memberIsBot: false,
+    joinedAt: (member.joinedAt ?? new Date()).toISOString(),
+  });
+
+  void manageGuild;
+};
+
+const handleMemberAdd = (
+  member: GuildMember,
+  guildId: string,
+  manageGuild: bigint,
 ) => {
-	if (member.user.bot || member.guild.id !== trackedGuildId) return;
+  if (member.user.bot || member.guild.id !== guildId) return;
 
-	const previous = inviteCache.get(member.guild.id) ?? new Map<string, number>();
-	let invites: Map<string, Invite>;
-
-	try {
-		const fetched = await member.guild.invites.fetch();
-		invites = new Map(fetched.map((invite) => [invite.code, invite]));
-	} catch (cause) {
-		console.error('[discord] Unable to fetch invites after a member joined.', cause);
-		return;
-	}
-
-	let inviterId = findInviter(previous, invites);
-
-	if (!inviterId) {
-		await sleep(1000);
-
-		try {
-			const retry = await member.guild.invites.fetch();
-			invites = new Map(retry.map((invite) => [invite.code, invite]));
-			inviterId = findInviter(previous, invites);
-		} catch (cause) {
-			console.error('[discord] Unable to retry invite lookup.', cause);
-		}
-	}
-
-	await refreshInvites(member.guild, manageGuildPermission).catch((cause) => {
-		console.error('[discord] Unable to refresh the invite cache.', cause);
-	});
-
-	if (!inviterId) {
-		console.warn(`[discord] Could not attribute an inviter for member ${member.id}.`);
-		return;
-	}
-
-	if (inviterId === member.id) return;
-
-	enqueue({
-		type: 'member_join',
-		guildId: member.guild.id,
-		memberId: member.id,
-		inviterId,
-		memberIsBot: false,
-		joinedAt: (member.joinedAt ?? new Date()).toISOString()
-	});
+  // Serialize joins so two members joining together don't corrupt each other's diff.
+  state.joinChain = state.joinChain
+    .then(() => processMemberAdd(member, manageGuild))
+    .catch((cause) => {
+      console.error("[discord] Unexpected member join handler failure.", cause);
+    });
 };
 
-const startDiscordClient = async (token: string, guildId: string) => {
-	const { Client, Events, GatewayIntentBits, PermissionFlagsBits } = await import('discord.js');
-	const manageGuildPermission = PermissionFlagsBits.ManageGuild;
-	const client = new Client({
-		intents: [
-			GatewayIntentBits.Guilds,
-			GatewayIntentBits.GuildMembers,
-			GatewayIntentBits.GuildInvites
-		]
-	});
+const destroyClient = async (client: Client | null) => {
+  if (!client) return;
 
-	state.client = client;
+  try {
+    client.removeAllListeners();
+    client.on("error", () => {});
+    await client.destroy();
+  } catch {
+    // Ignore cleanup failures.
+  }
+};
 
-	client.once(Events.ClientReady, async (ready) => {
-		try {
-			const guild = await ready.guilds.fetch(guildId);
-			await refreshInvites(guild, manageGuildPermission);
-			console.info(`[discord] Tracking invites for ${guild.name} (${guild.id}).`);
-		} catch (cause) {
-			console.error('[discord] Unable to initialise invite tracking.', cause);
-		}
-	});
+const buildClient = async (guildId: string) => {
+  const {
+    ActivityType,
+    Client,
+    Events,
+    GatewayIntentBits,
+    PermissionFlagsBits,
+  } = await import("discord.js");
+  const manageGuild = PermissionFlagsBits.ManageGuild;
 
-	client.on(Events.GuildMemberAdd, (member) => {
-		void handleMemberAdd(member, guildId, manageGuildPermission).catch((cause) => {
-			console.error('[discord] Unexpected member join handler failure.', cause);
-		});
-	});
+  const client = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildInvites,
+    ],
+    presence: {
+      status: "online",
+      activities: [{ name: "invites", type: ActivityType.Watching }],
+    },
+  });
 
-	client.on(Events.GuildMemberRemove, (member) => {
-		if (member.user.bot || member.guild.id !== guildId) return;
+  client.on(Events.Error, (cause) =>
+    console.error("[discord] Client error.", cause),
+  );
+  client.on(Events.Warn, (message) =>
+    console.warn("[discord] Warning:", message),
+  );
+  client.on(Events.ShardError, (cause, id) =>
+    console.error(`[discord] Shard ${id} error.`, cause),
+  );
+  client.on(Events.ShardDisconnect, (event, id) =>
+    console.warn(`[discord] Shard ${id} disconnected (code ${event.code}).`),
+  );
+  client.on(Events.ShardReconnecting, (id) =>
+    console.info(`[discord] Shard ${id} reconnecting.`),
+  );
+  client.on(Events.ShardResume, (id) =>
+    console.info(`[discord] Shard ${id} resumed.`),
+  );
+  client.on(Events.Invalidated, () =>
+    console.error("[discord] Session invalidated."),
+  );
+  client.on(Events.InteractionCreate, (interaction) => {
+    void handleInteraction(interaction, guildId).catch((cause) => {
+      console.error("[discord] Interaction handler failed.", cause);
+    });
+  });
+  if (DEBUG) {
+    client.on(Events.Debug, (message) =>
+      console.debug("[discord:debug]", message),
+    );
+  }
 
-		enqueue({
-			type: 'member_leave',
-			guildId: member.guild.id,
-			memberId: member.id
-		});
-	});
+  client.on(Events.GuildMemberAdd, (member) =>
+    handleMemberAdd(member, guildId, manageGuild),
+  );
 
-	client.on(Events.InviteCreate, (invite) => {
-		if (invite.guild?.id !== guildId) return;
+  client.on(Events.GuildMemberRemove, (member) => {
+    if (member.user.bot || member.guild.id !== guildId) return;
 
-		const cached = inviteCache.get(guildId) ?? new Map<string, number>();
-		cached.set(invite.code, invite.uses ?? 0);
-		inviteCache.set(guildId, cached);
-	});
+    enqueue({
+      type: "member_leave",
+      guildId: member.guild.id,
+      memberId: member.id,
+    });
+  });
 
-	client.on(Events.InviteDelete, (invite) => {
-		inviteCache.get(guildId)?.delete(invite.code);
-	});
+  client.on(Events.InviteCreate, (invite) => {
+    if (invite.guild?.id !== guildId) return;
 
-	client.on(Events.Error, (cause) => {
-		console.error('[discord] Discord client error.', cause);
-	});
+    const cache =
+      state.inviteCache.get(guildId) ?? new Map<string, CachedInvite>();
 
-	try {
-		await client.login(token);
-		state.started = true;
-		console.info(`[discord] Embedded invite bot connected; tracking guild ${guildId}.`);
-		return client;
-	} catch (cause) {
-		state.client = null;
-		state.attempted = true;
-		console.error('[discord] Unable to log in to Discord.', cause);
+    cache.set(invite.code, {
+      uses: invite.uses ?? 0,
+      maxUses: invite.maxUses ?? 0,
+      inviterId: invite.inviter?.id ?? null,
+      deletedAt: null,
+    });
+    state.inviteCache.set(guildId, cache);
+  });
 
-		try {
-			await client.destroy();
-		} catch {
-			// Ignore cleanup failures after a failed login.
-		}
+  client.on(Events.InviteDelete, (invite) => {
+    if (invite.guild?.id !== guildId) return;
 
-		return null;
-	}
+    const entry = state.inviteCache.get(guildId)?.get(invite.code);
+
+    if (entry) entry.deletedAt = Date.now();
+  });
+
+  client.on(Events.GuildCreate, (guild) => {
+    if (guild.id !== guildId) return;
+
+    void refreshInvites(guild, manageGuild).catch((cause) => {
+      console.error(
+        "[discord] Unable to refresh invites after joining the guild.",
+        cause,
+      );
+    });
+  });
+
+  return { client, manageGuild, Events };
+};
+
+const connect = async (
+  token: string,
+  guildId: string,
+): Promise<Client | null> => {
+  const generation = state.generation;
+
+  for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt += 1) {
+    if (generation !== state.generation) return null;
+
+    const { client, manageGuild, Events } = await buildClient(guildId);
+
+    const ready = new Promise<void>((resolve) => {
+      client.once(Events.ClientReady, () => resolve());
+    });
+
+    try {
+      console.info(
+        `[discord] Logging in (attempt ${attempt}/${MAX_CONNECT_ATTEMPTS}).`,
+      );
+
+      await withTimeout(client.login(token), LOGIN_TIMEOUT_MS, "Discord login");
+      await withTimeout(ready, READY_TIMEOUT_MS, "Discord gateway ready");
+    } catch (cause) {
+      console.error(`[discord] Connection attempt ${attempt} failed.`, cause);
+      await destroyClient(client);
+
+      if (FATAL_ERROR_CODES.has(errorCode(cause))) {
+        console.error(
+          "[discord] Fatal error: check the bot token and that all intents (especially Server Members) are enabled in the Developer Portal.",
+        );
+        return null;
+      }
+
+      if (attempt < MAX_CONNECT_ATTEMPTS) await sleep(attempt * 5000);
+      continue;
+    }
+
+    if (generation !== state.generation) {
+      await destroyClient(client);
+      return null;
+    }
+
+    state.client = client;
+    state.ready = true;
+    console.info(`[discord] Online as ${client.user?.tag ?? "unknown"}.`);
+
+    try {
+      const guild = await client.guilds.fetch(guildId);
+
+      await refreshInvites(guild, manageGuild);
+      console.info(
+        `[discord] Tracking invites for ${guild.name} (${guild.id}).`,
+      );
+      await registerCommands(client, guildId);
+    } catch (cause) {
+      console.error(
+        `[discord] The bot is online but cannot access guild ${guildId}. Is it invited to that server?`,
+        cause,
+      );
+    }
+
+    return client;
+  }
+
+  console.error("[discord] Giving up after repeated connection failures.");
+  return null;
+};
+
+const start = async (): Promise<Client | null> => {
+  const { getBool, getSetting, loadSettings } =
+    await import("#lib/server/config/settings.ts");
+  const { serverEnv } = await import("#lib/server/config/env.ts");
+
+  await loadSettings();
+
+  if (!getBool("discord.inviteTrackingEnabled")) {
+    warnOnce(
+      "disabled",
+      "[discord] Invite tracking is disabled; embedded bot not started.",
+    );
+    return null;
+  }
+
+  const token =
+    (serverEnv.DISCORD_BOT_TOKEN ?? "").trim() ||
+    getSetting("discord.botToken").trim();
+  const configuredGuildId =
+    (serverEnv.DISCORD_GUILD_ID ?? "").trim() ||
+    getSetting("discord.guildId").trim();
+  const guildId =
+    configuredGuildId ||
+    getSetting("discord.j4rGuildIds")
+      .split(/[\s,]+/)
+      .map((value) => value.trim())
+      .find(Boolean) ||
+    "";
+
+  if (!token || !guildId) {
+    warnOnce(
+      "unconfigured",
+      "[discord] Invite bot not started: the bot token and primary guild ID are not configured.",
+    );
+    return null;
+  }
+
+  state.warnedReason = null;
+
+  await (await import("#lib/server/db/bootstrap.ts")).ensureOperationalSchema();
+
+  return connect(token, guildId);
 };
 
 export const startDiscordBot = async (): Promise<Client | null> => {
-	if (state.started) return state.client;
-	if (state.starting || state.attempted || state.disabled) return state.client;
+  if (state.ready && state.client) return state.client;
+  if (state.starting) return state.starting;
 
-	state.starting = true;
+  const promise = start()
+    .catch((cause) => {
+      console.error(
+        "[discord] Unable to start the embedded invite bot.",
+        cause,
+      );
+      return null;
+    })
+    .finally(() => {
+      if (state.starting === promise) state.starting = null;
+    });
 
-	try {
-		const { getBool, getSetting, loadSettings } = await import('#lib/server/config/settings.ts');
-		const { serverEnv } = await import('#lib/server/config/env.ts');
-
-		await loadSettings();
-
-		if (!getBool('discord.inviteTrackingEnabled')) {
-			if (!state.warned) {
-				console.info('[discord] Invite tracking is disabled; embedded bot not started.');
-				state.warned = true;
-			}
-
-			state.disabled = true;
-			return null;
-		}
-
-		const token =
-			(serverEnv.DISCORD_BOT_TOKEN ?? '').trim() || getSetting('discord.botToken').trim();
-		const guildId =
-			(serverEnv.DISCORD_GUILD_ID ?? '').trim() ||
-			getSetting('discord.guildId').trim() ||
-			getSetting('discord.j4rGuildIds')
-				.split(/[\s,]+/)
-				.map((value) => value.trim())
-				.find(Boolean) ??
-				'';
-
-		if (!token || !guildId) {
-			if (!state.warned) {
-				console.info(
-					'[discord] Invite bot disabled because the Discord bot token and primary guild ID are not configured.'
-				);
-				state.warned = true;
-			}
-
-			state.disabled = true;
-			return null;
-		}
-
-		state.disabled = false;
-		await (await import('#lib/server/db/bootstrap.ts')).ensureOperationalSchema();
-
-		return await startDiscordClient(token, guildId);
-	} finally {
-		state.starting = false;
-	}
+  state.starting = promise;
+  return promise;
 };
 
 export const stopDiscordBot = async () => {
-	const client = state.client;
+  state.generation += 1;
+  state.starting = null;
 
-	state.client = null;
-	state.started = false;
-	state.attempted = false;
+  const client = state.client;
 
-	if (client) {
-		await client.destroy();
-	}
+  state.client = null;
+  state.ready = false;
+  state.inviteCache.clear();
+
+  await destroyClient(client);
 };
 
 export const restartDiscordBot = async () => {
-	await stopDiscordBot();
-	state.warned = false;
-	state.disabled = false;
-	return startDiscordBot();
+  await stopDiscordBot();
+  state.warnedReason = null;
+  return startDiscordBot();
 };
