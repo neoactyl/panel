@@ -74,6 +74,7 @@ const buildAuth = (
           discord: {
             ...discord,
             prompt: "consent",
+            scope: ["identify", "guilds"],
           },
         }
       : undefined,

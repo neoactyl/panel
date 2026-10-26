@@ -1,5 +1,12 @@
-﻿import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import {
+	index,
+	integer,
+	primaryKey,
+	sqliteTable,
+	text,
+	uniqueIndex
+} from 'drizzle-orm/sqlite-core';
 import { user } from './auth.schema';
 
 const timestamp = (name: string) =>
@@ -348,6 +355,93 @@ export const discordProfile = sqliteTable('discord_profile', {
 	lastCheckedAt: integer('last_checked_at', { mode: 'timestamp_ms' }),
 	j4rClaimedAt: integer('j4r_claimed_at', { mode: 'timestamp_ms' })
 });
+
+export const discordMembership = sqliteTable(
+	'discord_membership',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		guildId: text('guild_id').notNull(),
+		discordId: text('discord_id').notNull(),
+		member: integer('member', { mode: 'boolean' }).notNull().default(false),
+		roles: text('roles').notNull().default('[]'),
+		verifiedAt: integer('verified_at', { mode: 'timestamp_ms' }),
+		lastCheckedAt: timestamp('last_checked_at')
+	},
+	(table) => [
+		primaryKey({ columns: [table.userId, table.guildId] }),
+		index('discord_membership_discord_idx').on(table.discordId)
+	]
+);
+
+export const discordJ4rClaim = sqliteTable(
+	'discord_j4r_claim',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		discordId: text('discord_id').notNull(),
+		guildId: text('guild_id').notNull(),
+		rewardCoins: integer('reward_coins').notNull().default(0),
+		claimedAt: timestamp('claimed_at')
+	},
+	(table) => [
+		uniqueIndex('discord_j4r_claim_user_guild_idx').on(table.userId, table.guildId),
+		uniqueIndex('discord_j4r_claim_discord_guild_idx').on(table.discordId, table.guildId)
+	]
+);
+
+export const inviter = sqliteTable('inviters', {
+	discordId: text('discord_id').primaryKey(),
+	currentInviteCount: integer('current_invite_count').notNull().default(0),
+	totalLifetimeInvites: integer('total_lifetime_invites').notNull().default(0),
+	createdAt: timestamp('created_at'),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => new Date())
+		.notNull()
+});
+
+export const invitedUser = sqliteTable(
+	'invited_users',
+	{
+		discordId: text('discord_id').primaryKey(),
+		inviterId: text('inviter_id')
+			.notNull()
+			.references(() => inviter.discordId, { onDelete: 'cascade' }),
+		guildId: text('guild_id').notNull().default(''),
+		joinedAt: timestamp('joined_at'),
+		accountCreatedAt: timestamp('account_created_at'),
+		counted: integer('counted', { mode: 'boolean' }).notNull().default(false),
+		stillInServer: integer('still_in_server', { mode: 'boolean' }).notNull().default(true),
+		createdAt: timestamp('created_at')
+	},
+	(table) => [
+		index('invited_users_inviter_idx').on(table.inviterId, table.counted),
+		index('invited_users_guild_idx').on(table.guildId)
+	]
+);
+
+export const discordInviteClaim = sqliteTable(
+	'discord_invite_claim',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		inviterId: text('inviter_id').notNull(),
+		inviteCount: integer('invite_count').notNull(),
+		rewardCoins: integer('reward_coins').notNull().default(0),
+		claimedAt: timestamp('claimed_at')
+	},
+	(table) => [index('discord_invite_claim_user_idx').on(table.userId, table.claimedAt)]
+);
 
 export const storefrontItem = sqliteTable(
 	'storefront_item',

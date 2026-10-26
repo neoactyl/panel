@@ -53,6 +53,7 @@
   "dependencies": {
     "@better-auth/stripe": "^1.7.12",
     "@t3-oss/env-core": "^0.13.11",
+    "discord.js": "^14.27.0",
     "stripe": "^23.0.1",
     "sveltekit-rate-limiter": "^0.8.0",
     "zod": "^4.6.7"

@@ -261,6 +261,55 @@ const statements = [
 		last_checked_at INTEGER,
 		j4r_claimed_at INTEGER
 	)`,
+	sql`CREATE TABLE IF NOT EXISTS discord_membership (
+		user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+		guild_id TEXT NOT NULL,
+		discord_id TEXT NOT NULL,
+		member INTEGER NOT NULL DEFAULT 0,
+		roles TEXT NOT NULL DEFAULT '[]',
+		verified_at INTEGER,
+		last_checked_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		PRIMARY KEY (user_id, guild_id)
+	)`,
+	sql`CREATE INDEX IF NOT EXISTS discord_membership_discord_idx ON discord_membership (discord_id)`,
+	sql`CREATE TABLE IF NOT EXISTS discord_j4r_claim (
+		id TEXT PRIMARY KEY NOT NULL,
+		user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+		discord_id TEXT NOT NULL,
+		guild_id TEXT NOT NULL,
+		reward_coins INTEGER NOT NULL DEFAULT 0,
+		claimed_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+	sql`CREATE UNIQUE INDEX IF NOT EXISTS discord_j4r_claim_user_guild_idx ON discord_j4r_claim (user_id, guild_id)`,
+	sql`CREATE UNIQUE INDEX IF NOT EXISTS discord_j4r_claim_discord_guild_idx ON discord_j4r_claim (discord_id, guild_id)`,
+	sql`CREATE TABLE IF NOT EXISTS inviters (
+		discord_id TEXT PRIMARY KEY NOT NULL,
+		current_invite_count INTEGER NOT NULL DEFAULT 0,
+		total_lifetime_invites INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+	sql`CREATE TABLE IF NOT EXISTS invited_users (
+		discord_id TEXT PRIMARY KEY NOT NULL,
+		inviter_id TEXT NOT NULL REFERENCES inviters(discord_id) ON DELETE CASCADE,
+		guild_id TEXT NOT NULL DEFAULT '',
+		joined_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		account_created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		counted INTEGER NOT NULL DEFAULT 0,
+		still_in_server INTEGER NOT NULL DEFAULT 1,
+		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+	sql`CREATE INDEX IF NOT EXISTS invited_users_inviter_idx ON invited_users (inviter_id, counted)`,
+	sql`CREATE INDEX IF NOT EXISTS invited_users_guild_idx ON invited_users (guild_id)`,
+	sql`CREATE TABLE IF NOT EXISTS discord_invite_claim (
+		id TEXT PRIMARY KEY NOT NULL,
+		user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+		inviter_id TEXT NOT NULL,
+		invite_count INTEGER NOT NULL,
+		reward_coins INTEGER NOT NULL DEFAULT 0,
+		claimed_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+	sql`CREATE INDEX IF NOT EXISTS discord_invite_claim_user_idx ON discord_invite_claim (user_id, claimed_at)`,
 ];
 
 const migrateUserQuota = async () => {
@@ -380,6 +429,15 @@ const migrateUsers = async () => {
 	}
 };
 
+const migrateDiscordJ4rClaims = async () => {
+	await db.run(sql`
+		INSERT OR IGNORE INTO discord_j4r_claim (id, user_id, discord_id, guild_id, reward_coins, claimed_at)
+		SELECT lower(hex(randomblob(16))), user_id, discord_id, guild_id, 0, j4r_claimed_at
+		FROM discord_profile
+		WHERE j4r_claimed_at IS NOT NULL AND guild_id <> ''
+	`);
+};
+
 const migrateEarnTaskCompletion = async () => {
 	const columns = new Set(
 		(
@@ -414,6 +472,7 @@ export const ensureOperationalSchema = () => {
 			await migrateErrorLog();
 			await migrateSoftwareSettings();
 			await migrateEarnTaskCompletion();
+			await migrateDiscordJ4rClaims();
 		})().catch((cause) => {
 			ready = undefined;
 			throw cause;

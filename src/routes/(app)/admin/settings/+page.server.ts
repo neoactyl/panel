@@ -17,6 +17,7 @@ import {
   loadSettings,
   updateSettings,
 } from "#lib/server/config/settings.ts";
+import { inviteTiersSchema } from "#lib/server/rewards/config.ts";
 import { message, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { firstFormError } from "#lib/server/form-error.ts";
@@ -135,18 +136,53 @@ const extraSections: ExtraSection[] = [
 	{
 		title: 'Discord & join-for-resources',
 		description:
-			'Discord OAuth credentials, guild membership verification, role perks and J4R rewards. Empty OAuth fields fall back to DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET.',
+			'Discord OAuth credentials, guild membership verification, role perks, J4R rewards and the embedded invite tracking bot. Empty OAuth fields fall back to DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET.',
 		tab: 'integrations',
 		fields: [
 			{ key: 'discord.clientId', label: 'Discord client ID', type: 'text' },
 			{ key: 'discord.clientSecret', label: 'Discord client secret', type: 'secret' },
-			{ key: 'discord.guildId', label: 'Discord guild ID', type: 'text' },
+			{
+				key: 'discord.guildId',
+				label: 'Primary Discord guild ID (invite tracking)',
+				type: 'text'
+			},
+			{
+				key: 'discord.j4rGuildIds',
+				label: 'J4R guild IDs',
+				type: 'text',
+				placeholder: 'Comma-separated; falls back to the primary guild'
+			},
 			{ key: 'discord.inviteUrl', label: 'Discord invite URL', type: 'text' },
-			{ key: 'discord.botToken', label: 'Discord bot token', type: 'secret' },
+			{
+				key: 'discord.botToken',
+				label: 'Discord bot token (membership + invite tracking)',
+				type: 'secret'
+			},
 			{ key: 'discord.requiredRoleId', label: 'Required role ID', type: 'text' },
 			{ key: 'discord.requireMembership', label: 'Require guild membership', type: 'boolean' },
 			{ key: 'discord.j4rEnabled', label: 'Enable J4R claims', type: 'boolean' },
-			{ key: 'discord.j4rRewardCoins', label: 'J4R reward credits', type: 'number' }
+			{ key: 'discord.j4rRewardCoins', label: 'J4R reward credits', type: 'number' },
+			{
+				key: 'discord.inviteTrackingEnabled',
+				label: 'Enable embedded Discord invite bot',
+				type: 'boolean'
+			},
+			{
+				key: 'discord.inviteMinAccountAgeDays',
+				label: 'Minimum invitee account age (days)',
+				type: 'number'
+			},
+			{
+				key: 'discord.inviteRequireStillMember',
+				label: 'Require invitee to still be in server',
+				type: 'boolean'
+			},
+			{
+				key: 'discord.inviteTiers',
+				label: 'Invite reward tiers (JSON)',
+				type: 'text',
+				placeholder: '[{"invites":1,"coins":10}]'
+			}
 		]
 	},
 	{
@@ -207,6 +243,21 @@ for (const key of SETTING_KEYS) {
     settingsShape[key] = z.enum(["mock", "calagopus"], {
       message: "Choose a valid panel adapter.",
     });
+  } else if (key === "discord.inviteTiers") {
+    settingsShape[key] = z
+      .string()
+      .trim()
+      .refine(
+        (value) => {
+          try {
+            const parsed: unknown = JSON.parse(value);
+            return inviteTiersSchema.safeParse(parsed).success;
+          } catch {
+            return false;
+          }
+        },
+        { message: "Enter a valid non-empty JSON array of invite tiers." },
+      );
   } else {
     settingsShape[key] = z.string().trim();
   }

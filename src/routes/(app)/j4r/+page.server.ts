@@ -58,10 +58,17 @@ export const actions: Actions = {
 		}
 	},
 
-	claim: async ({ locals }) => {
+	claim: async ({ locals, request }) => {
+		const data = await request.formData();
+		const guildId = String(data.get('guildId') ?? '').trim();
+
+		if (!guildId) {
+			return fail(400, { error: 'Choose a Discord server to claim.' });
+		}
+
 		try {
-			const result = await claimJ4R(locals.user!.id);
-			return { claimed: result.reward };
+			const result = await claimJ4R(locals.user!.id, guildId);
+			return { claimed: result.reward, claimedGuildId: result.guildId };
 		} catch (cause) {
 			return fail(400, { error: message(cause) });
 		}

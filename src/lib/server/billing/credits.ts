@@ -24,6 +24,8 @@ export type CreditEntry = {
 	metadata?: Record<string, unknown>;
 };
 
+type CreditExecutor = Pick<typeof db, 'select' | 'insert' | 'update'>;
+
 const requirePositive = (amount: number) => {
 	if (!Number.isInteger(amount) || amount <= 0) {
 		throw new CreditError('Credit amounts must be positive whole numbers.', 'INVALID_AMOUNT');
@@ -43,8 +45,8 @@ export const getCreditBalance = async (userId: string) => {
 	return account?.balance ?? 0;
 };
 
-const applyEntry = async (entry: CreditEntry, delta: number) => {
-	const existing = await db
+const applyEntryWith = async (executor: CreditExecutor, entry: CreditEntry, delta: number) => {
+	const existing = await executor
 		.select({ balanceAfter: creditTransaction.balanceAfter })
 		.from(creditTransaction)
 		.where(eq(creditTransaction.reference, entry.reference))
@@ -54,7 +56,7 @@ const applyEntry = async (entry: CreditEntry, delta: number) => {
 		return { applied: false as const, balance: existing.balanceAfter };
 	}
 
-	const account = await db
+	const account = await executor
 		.select()
 		.from(creditAccount)
 		.where(eq(creditAccount.userId, entry.userId))
@@ -73,17 +75,17 @@ const applyEntry = async (entry: CreditEntry, delta: number) => {
 	const now = new Date();
 
 	if (account) {
-		await db
+		await executor
 			.update(creditAccount)
 			.set({ balance: next, updatedAt: now })
 			.where(eq(creditAccount.userId, entry.userId))
 			.run();
 	} else {
-		await db.insert(creditAccount).values({ userId: entry.userId, balance: next, updatedAt: now }).run();
+		await executor.insert(creditAccount).values({ userId: entry.userId, balance: next, updatedAt: now }).run();
 	}
 
 	try {
-		await db
+		await executor
 			.insert(creditTransaction)
 			.values({
 				userId: entry.userId,
@@ -97,19 +99,19 @@ const applyEntry = async (entry: CreditEntry, delta: number) => {
 			})
 			.run();
 	} catch (cause) {
-		const duplicate = await db
+		const duplicate = await executor
 			.select({ balanceAfter: creditTransaction.balanceAfter })
 			.from(creditTransaction)
 			.where(eq(creditTransaction.reference, entry.reference))
 			.get();
 
-		if (duplicate) return { applied: false as const, balance: duplicate.balanceAfter };
-
-		await db
+		await executor
 			.update(creditAccount)
 			.set({ balance, updatedAt: now })
 			.where(eq(creditAccount.userId, entry.userId))
 			.run();
+
+		if (duplicate) return { applied: false as const, balance: duplicate.balanceAfter };
 
 		throw cause;
 	}
@@ -117,9 +119,19 @@ const applyEntry = async (entry: CreditEntry, delta: number) => {
 	return { applied: true as const, balance: next };
 };
 
+const applyEntry = (entry: CreditEntry, delta: number) => applyEntryWith(db, entry, delta);
+
 export const addCredits = async (entry: Omit<CreditEntry, 'amount'> & { amount: number }) => {
 	requirePositive(entry.amount);
 	return applyEntry(entry, entry.amount);
+};
+
+export const addCreditsWith = async (
+	executor: CreditExecutor,
+	entry: Omit<CreditEntry, 'amount'> & { amount: number }
+) => {
+	requirePositive(entry.amount);
+	return applyEntryWith(executor, entry, entry.amount);
 };
 
 export const spendCredits = async (entry: Omit<CreditEntry, 'amount'> & { amount: number }) => {
