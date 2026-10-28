@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
-	import { fly } from 'svelte/transition';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconPhoto from '@tabler/icons-svelte/icons/photo';
@@ -47,10 +46,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-6 py-12">
-	<div
-		in:fly={{ y: -16, duration: 450 }}
-		class="w-full max-w-2xl border border-white/10 bg-[#1a1a1a] p-6 shadow-2xl shadow-black/60 sm:p-8"
-	>
+	<div class="w-full max-w-2xl border border-white/10 bg-[#1a1a1a] p-6 shadow-2xl shadow-black/60 sm:p-8">
 		<div class="flex items-center gap-4 border-b border-white/10 pb-6">
 			<div class="flex h-14 w-14 shrink-0 items-center justify-center border border-white/10 bg-white/5">
 				<img src={data.branding.logo || logo} alt="" class="h-8 w-auto" />
