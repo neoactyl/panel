@@ -21,6 +21,14 @@ type BotState = {
   queue: DiscordInviteEvent[];
   draining: boolean;
   joinChain: Promise<void>;
+  /** Gateway shards this process is responsible for. */
+  shardIds: number[];
+  /** Total number of shards across every bot process. */
+  shardCount: number;
+  /** Guilds configured for invite tracking; empty means every guild on our shards. */
+  trackedGuildIds: Set<string>;
+  /** Subset of trackedGuildIds that this process actually owns. */
+  activeGuildIds: Set<string>;
 };
 
 const botGlobals = globalThis as typeof globalThis & {
@@ -37,6 +45,10 @@ const state: BotState = (botGlobals.__neoactylDiscordBotV2 ??= {
   queue: [],
   draining: false,
   joinChain: Promise.resolve(),
+  shardIds: [0],
+  shardCount: 1,
+  trackedGuildIds: new Set(),
+  activeGuildIds: new Set(),
 });
 
 const LOGIN_TIMEOUT_MS = 30_000;
@@ -89,6 +101,89 @@ const warnOnce = (reason: string, message: string) => {
 
   state.warnedReason = reason;
   console.info(message);
+};
+
+const parseShardIds = (raw: string): number[] => {
+  const ids = raw
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      const id = Number(value);
+
+      if (!Number.isInteger(id) || id < 0) {
+        throw new Error(
+          `DISCORD_SHARD_IDS contains an invalid shard id: "${value}".`,
+        );
+      }
+
+      return id;
+    });
+
+  return [...new Set(ids)].sort((a, b) => a - b);
+};
+
+/**
+ * Resolve the shard layout for this process.
+ *
+ * `DISCORD_SHARD_COUNT` must be identical in every process. A process that only
+ * hosts a subset sets `DISCORD_SHARD_IDS` to its ids (for example `1` or
+ * `1,2`). The default is the historical single, unsharded client (shard 0/1).
+ */
+const readShardConfig = (
+  rawIdsValue: string | undefined,
+  rawCountValue: string | undefined,
+) => {
+  const rawIds = (rawIdsValue ?? "").trim();
+  const parsedIds = rawIds ? parseShardIds(rawIds) : [0];
+  const ids = parsedIds.length > 0 ? parsedIds : [0];
+  const rawCount = (rawCountValue ?? "").trim();
+  const count = rawCount ? Number(rawCount) : Math.max(...ids) + 1;
+
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(
+      `DISCORD_SHARD_COUNT must be a positive integer (received "${rawCount}").`,
+    );
+  }
+
+  const invalid = ids.find((id) => id >= count);
+
+  if (invalid !== undefined) {
+    throw new Error(
+      `DISCORD_SHARD_IDS contains ${invalid}, but DISCORD_SHARD_COUNT is ${count}.`,
+    );
+  }
+
+  return { ids, count };
+};
+
+const readTrackedGuildIds = (
+  serverGuildId: string,
+  settingGuildId: string,
+  j4rGuildIds: string,
+): string[] => {
+  const values = [
+    serverGuildId,
+    settingGuildId,
+    ...j4rGuildIds.split(/[\s,]+/),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return [...new Set(values)];
+};
+
+const isTrackedGuild = (guildId: string) =>
+  state.trackedGuildIds.size === 0 || state.trackedGuildIds.has(guildId);
+
+const isActiveGuild = (guildId: string) => state.activeGuildIds.has(guildId);
+
+/** Discord assigns each guild to a shard by taking the high bits of its id. */
+const guildShard = (guildId: string, shardCount: number): number | null => {
+  if (shardCount <= 1) return 0;
+  if (!/^\d{15,20}$/.test(guildId)) return null;
+
+  return Number((BigInt(guildId) >> 22n) % BigInt(shardCount));
 };
 
 const toCache = (invites: Iterable<[string, Invite]>): InviteMap => {
@@ -297,8 +392,8 @@ const processMemberAdd = async (member: GuildMember) => {
   });
 };
 
-const handleMemberAdd = (member: GuildMember, guildId: string) => {
-  if (member.user.bot || member.guild.id !== guildId) return;
+const handleMemberAdd = (member: GuildMember) => {
+  if (member.user.bot) return;
 
   // Serialize joins so two members joining together don't corrupt each other's diff.
   state.joinChain = state.joinChain
@@ -320,7 +415,7 @@ const destroyClient = async (client: Client | null) => {
   }
 };
 
-const buildClient = async (guildId: string) => {
+const buildClient = async () => {
   const {
     ActivityType,
     Client,
@@ -336,6 +431,11 @@ const buildClient = async (guildId: string) => {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildInvites,
     ],
+    // Discord requires every process to agree on the total shard count. A
+    // process can own a subset of the ids (for example the web app owns [0]
+    // while separate workers own [1], [2] and [3]).
+    shardCount: state.shardCount,
+    shards: state.shardIds,
     presence: {
       status: "online",
       activities: [{ name: "invites", type: ActivityType.Watching }],
@@ -364,7 +464,9 @@ const buildClient = async (guildId: string) => {
     console.error("[discord] Session invalidated."),
   );
   client.on(Events.InteractionCreate, (interaction) => {
-    void handleInteraction(interaction, guildId).catch((cause) => {
+    if (!interaction.guildId || !isActiveGuild(interaction.guildId)) return;
+
+    void handleInteraction(interaction).catch((cause) => {
       console.error("[discord] Interaction handler failed.", cause);
     });
   });
@@ -374,12 +476,13 @@ const buildClient = async (guildId: string) => {
     );
   }
 
-  client.on(Events.GuildMemberAdd, (member) =>
-    handleMemberAdd(member, guildId),
-  );
+  client.on(Events.GuildMemberAdd, (member) => {
+    if (!isActiveGuild(member.guild.id)) return;
+    handleMemberAdd(member);
+  });
 
   client.on(Events.GuildMemberRemove, (member) => {
-    if (member.user.bot || member.guild.id !== guildId) return;
+    if (member.user.bot || !isActiveGuild(member.guild.id)) return;
 
     enqueue({
       type: "member_leave",
@@ -389,7 +492,9 @@ const buildClient = async (guildId: string) => {
   });
 
   client.on(Events.InviteCreate, (invite) => {
-    if (invite.guild?.id !== guildId) return;
+    const guildId = invite.guild?.id;
+
+    if (!guildId || !isActiveGuild(guildId)) return;
 
     const cache =
       state.inviteCache.get(guildId) ?? new Map<string, CachedInvite>();
@@ -404,7 +509,9 @@ const buildClient = async (guildId: string) => {
   });
 
   client.on(Events.InviteDelete, (invite) => {
-    if (invite.guild?.id !== guildId) return;
+    const guildId = invite.guild?.id;
+
+    if (!guildId || !isActiveGuild(guildId)) return;
 
     const entry = state.inviteCache.get(guildId)?.get(invite.code);
 
@@ -412,29 +519,50 @@ const buildClient = async (guildId: string) => {
   });
 
   client.on(Events.GuildCreate, (guild) => {
-    if (guild.id !== guildId) return;
+    if (!isTrackedGuild(guild.id)) return;
 
-    void refreshInvites(guild, manageGuild).catch((cause) => {
-      console.error(
-        "[discord] Unable to refresh invites after joining the guild.",
-        cause,
-      );
-    });
+    state.activeGuildIds.add(guild.id);
+
+    void (async () => {
+      try {
+        await refreshInvites(guild, manageGuild);
+      } catch (cause) {
+        console.error(
+          "[discord] Unable to refresh invites after joining the guild.",
+          cause,
+        );
+      }
+
+      // During the initial login `connect` registers every active guild once
+      // the ready payload has been processed, so only newly joined guilds need
+      // commands here.
+      if (state.ready) {
+        await registerCommands(guild).catch((cause) => {
+          console.error(
+            `[discord] Unable to register commands in ${guild.id}.`,
+            cause,
+          );
+        });
+      }
+    })();
+  });
+
+  client.on(Events.GuildDelete, (guild) => {
+    state.activeGuildIds.delete(guild.id);
+    state.inviteCache.delete(guild.id);
   });
 
   return { client, manageGuild, Events };
 };
 
-const connect = async (
-  token: string,
-  guildId: string,
-): Promise<Client | null> => {
+const connect = async (token: string): Promise<Client | null> => {
   const generation = state.generation;
+  const shardLabel = `${state.shardIds.join(", ")}/${state.shardCount}`;
 
   for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt += 1) {
     if (generation !== state.generation) return null;
 
-    const { client, manageGuild, Events } = await buildClient(guildId);
+    const { client, manageGuild, Events } = await buildClient();
 
     const ready = new Promise<void>((resolve) => {
       client.once(Events.ClientReady, () => resolve());
@@ -442,7 +570,7 @@ const connect = async (
 
     try {
       console.info(
-        `[discord] Logging in (attempt ${attempt}/${MAX_CONNECT_ATTEMPTS}).`,
+        `[discord] Logging in shard(s) ${shardLabel} (attempt ${attempt}/${MAX_CONNECT_ATTEMPTS}).`,
       );
 
       await withTimeout(client.login(token), LOGIN_TIMEOUT_MS, "Discord login");
@@ -469,22 +597,55 @@ const connect = async (
 
     state.client = client;
     state.ready = true;
-    console.info(`[discord] Online as ${client.user?.tag ?? "unknown"}.`);
+    state.activeGuildIds.clear();
 
     try {
-      const guild = await client.guilds.fetch(guildId);
-
-      await refreshInvites(guild, manageGuild);
-      console.info(
-        `[discord] Tracking invites for ${guild.name} (${guild.id}).`,
+      // Discord only sends guilds that belong to this process's shards, so the
+      // cache is the authoritative list of what this process can serve.
+      const targets = [...client.guilds.cache.keys()].filter((id) =>
+        isTrackedGuild(id),
       );
-      await registerCommands(client, guildId);
+
+      for (const id of targets) state.activeGuildIds.add(id);
+
+      if (state.trackedGuildIds.size > 0) {
+        const skipped = [...state.trackedGuildIds].filter(
+          (id) => !state.activeGuildIds.has(id),
+        );
+
+        if (skipped.length > 0) {
+          console.info(
+            `[discord] Shard(s) ${shardLabel} do not serve ${skipped.join(", ")}; leaving those to their own shard.`,
+          );
+        }
+      }
+
+      if (targets.length === 0) {
+        console.info(
+          `[discord] Shard(s) ${shardLabel} have no assigned guilds to track.`,
+        );
+      }
+
+      for (const id of targets) {
+        const guild =
+          client.guilds.cache.get(id) ?? (await client.guilds.fetch(id));
+
+        await refreshInvites(guild, manageGuild);
+        await registerCommands(guild);
+        console.info(
+          `[discord] Tracking invites for ${guild.name} (${guild.id}) on shard(s) ${shardLabel}.`,
+        );
+      }
     } catch (cause) {
       console.error(
-        `[discord] The bot is online but cannot access guild ${guildId}. Is it invited to that server?`,
+        "[discord] The bot is online but one or more guilds could not be prepared. Is it invited to those servers and does it have Manage Server?",
         cause,
       );
     }
+
+    console.info(
+      `[discord] Online as ${client.user?.tag ?? "unknown"} on shard(s) ${shardLabel}.`,
+    );
 
     return client;
   }
@@ -497,6 +658,14 @@ const start = async (): Promise<Client | null> => {
   const { getBool, getSetting, loadSettings } =
     await import("#lib/server/config/settings.ts");
   const { serverEnv } = await import("#lib/server/config/env.ts");
+
+  const { ids, count } = readShardConfig(
+    serverEnv.DISCORD_SHARD_IDS,
+    serverEnv.DISCORD_SHARD_COUNT,
+  );
+
+  state.shardIds = ids;
+  state.shardCount = count;
 
   await loadSettings();
 
@@ -511,30 +680,44 @@ const start = async (): Promise<Client | null> => {
   const token =
     (serverEnv.DISCORD_BOT_TOKEN ?? "").trim() ||
     getSetting("discord.botToken").trim();
-  const configuredGuildId =
-    (serverEnv.DISCORD_GUILD_ID ?? "").trim() ||
-    getSetting("discord.guildId").trim();
-  const guildId =
-    configuredGuildId ||
-    getSetting("discord.j4rGuildIds")
-      .split(/[\s,]+/)
-      .map((value) => value.trim())
-      .find(Boolean) ||
-    "";
+  const trackedGuildIds = readTrackedGuildIds(
+    (serverEnv.DISCORD_GUILD_ID ?? "").trim(),
+    getSetting("discord.guildId"),
+    getSetting("discord.j4rGuildIds"),
+  );
 
-  if (!token || !guildId) {
+  if (!token) {
     warnOnce(
       "unconfigured",
-      "[discord] Invite bot not started: the bot token and primary guild ID are not configured.",
+      "[discord] Invite bot not started: no bot token is configured.",
     );
     return null;
   }
 
   state.warnedReason = null;
+  state.trackedGuildIds = new Set(trackedGuildIds);
 
   await (await import("#lib/server/db/bootstrap.ts")).ensureOperationalSchema();
 
-  return connect(token, guildId);
+  console.info(
+    `[discord] Starting shard(s) ${ids.join(", ")} of ${count}; tracking ${
+      trackedGuildIds.length > 0
+        ? `${trackedGuildIds.length} configured guild(s)`
+        : "every guild on these shards"
+    }.`,
+  );
+
+  for (const guildId of trackedGuildIds) {
+    const shard = guildShard(guildId, count);
+
+    if (shard !== null) {
+      console.info(
+        `[discord] Guild ${guildId} is assigned to shard ${shard}/${count}.`,
+      );
+    }
+  }
+
+  return connect(token);
 };
 
 export const startDiscordBot = async (): Promise<Client | null> => {
@@ -566,6 +749,8 @@ export const stopDiscordBot = async () => {
   state.client = null;
   state.ready = false;
   state.inviteCache.clear();
+  state.activeGuildIds.clear();
+  state.trackedGuildIds.clear();
 
   await destroyClient(client);
 };

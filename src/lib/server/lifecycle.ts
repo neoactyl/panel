@@ -2,6 +2,7 @@ import { building } from '$app/env';
 import { maybeRunRenewals } from '#lib/server/billing/billing.ts';
 import { ensureOperationalSchema } from '#lib/server/db/bootstrap.ts';
 import { loadSettings } from '#lib/server/config/settings.ts';
+import { serverEnv } from '#lib/server/config/env.ts';
 import { startDiscordBot, stopDiscordBot } from '#lib/server/discord/bot.ts';
 import { logError } from '#lib/server/system/logs.ts';
 import { createBanner } from '#lib/taag.ts';
@@ -10,6 +11,16 @@ const inflight = new Set<Promise<unknown>>();
 let initialized = false;
 let renewalsRunning = false;
 let renewalsTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * The web process hosts shard 0 by default. Set DISCORD_EMBED_BOT=false when
+ * the bot runs in its own process (or processes) so the web app never opens a
+ * second gateway session.
+ */
+const embeddedBotEnabled = () =>
+	!['0', 'false', 'no', 'off'].includes(
+		(serverEnv.DISCORD_EMBED_BOT ?? 'true').trim().toLowerCase()
+	);
 
 const fireAndForget = (fn: () => unknown, label = 'background task') => {
 	const task: Promise<unknown> = (async () => fn())()
@@ -59,9 +70,11 @@ export const initializeServer = () => {
 	console.log(createBanner());
 
 	fireAndForget(runRenewalsOnce, 'renewals');
-	void startDiscordBot().catch((cause) => {
-		console.error('[discord] Unable to start the embedded invite bot.', cause);
-	});
+	if (embeddedBotEnabled()) {
+		void startDiscordBot().catch((cause) => {
+			console.error('[discord] Unable to start the embedded invite bot.', cause);
+		});
+	}
 
 	renewalsTimer = setInterval(
 		() => fireAndForget(runRenewalsOnce, 'renewals'),

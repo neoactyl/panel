@@ -2,6 +2,11 @@ import { defineEnvVars } from '@sveltejs/kit/env';
 
 export const variables = defineEnvVars({
 	DATABASE_URL: { description: 'The database connection string.' },
+	DATABASE_AUTH_TOKEN: {
+		description:
+			'Optional auth token for a networked libSQL/Turso database. Required when DATABASE_URL points at a remote database that enforces authentication.',
+		schema: (value) => value ?? undefined
+	},
 	ORIGIN: {
 		description: 'The app origin (base URL), e.g. `http://localhost:5173`.'
 	},
@@ -22,6 +27,21 @@ export const variables = defineEnvVars({
 	},
 	DISCORD_CLIENT_SECRET: {
 		description: 'Discord OAuth client secret, used by Better Auth to enable "Sign in with Discord". Leave unset to disable Discord sign-in.',
+		schema: (value) => value ?? undefined
+	},
+	DISCORD_SHARD_IDS: {
+		description:
+			'Comma-separated Discord gateway shard IDs this process runs (for example "0" or "1,2"). Defaults to 0.',
+		schema: (value) => value ?? undefined
+	},
+	DISCORD_SHARD_COUNT: {
+		description:
+			'Total Discord gateway shard count. Must be identical in every bot process. Defaults to the highest shard ID plus one.',
+		schema: (value) => value ?? undefined
+	},
+	DISCORD_EMBED_BOT: {
+		description:
+			'Whether the web process starts the embedded Discord bot. Set to false when the bot runs in a separate process. Defaults to true.',
 		schema: (value) => value ?? undefined
 	},
 	STRIPE_SECRET_KEY: {

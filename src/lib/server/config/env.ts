@@ -10,6 +10,7 @@ const optionalString = z.preprocess(
 export const serverEnv = createEnv({
   server: {
     DATABASE_URL: z.string().min(1),
+    DATABASE_AUTH_TOKEN: optionalString,
     ORIGIN: z.string().url(),
     BETTER_AUTH_URL: z.string().url().optional(),
     BETTER_AUTH_SECRET: z.string().min(32),
@@ -18,6 +19,9 @@ export const serverEnv = createEnv({
     DISCORD_CLIENT_SECRET: optionalString,
     DISCORD_BOT_TOKEN: optionalString,
     DISCORD_GUILD_ID: optionalString,
+    DISCORD_SHARD_IDS: optionalString,
+    DISCORD_SHARD_COUNT: optionalString,
+    DISCORD_EMBED_BOT: optionalString,
     STRIPE_SECRET_KEY: optionalString,
     STRIPE_WEBHOOK_SECRET: optionalString,
   },

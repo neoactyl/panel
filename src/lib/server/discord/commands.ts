@@ -4,7 +4,7 @@ import {
 	MessageFlags,
 	SlashCommandBuilder,
 	type ChatInputCommandInteraction,
-	type Client,
+	type Guild,
 	type Interaction,
 	type RESTPostAPIChatInputApplicationCommandsJSONBody
 } from 'discord.js';
@@ -155,9 +155,7 @@ const commands: Command[] = [
 	}
 ];
 
-export const registerCommands = async (client: Client, guildId: string) => {
-	const guild = await client.guilds.fetch(guildId);
-
+export const registerCommands = async (guild: Guild) => {
 	await guild.commands.set(commands.map((command) => command.data.toJSON()));
 	console.info(`[discord] Registered ${commands.length} slash commands in ${guild.name}.`);
 };
@@ -176,8 +174,8 @@ const reportFailure = async (interaction: ChatInputCommandInteraction, message: 
 	}
 };
 
-export const handleInteraction = async (interaction: Interaction, guildId: string) => {
-	if (!interaction.isChatInputCommand() || interaction.guildId !== guildId) return;
+export const handleInteraction = async (interaction: Interaction) => {
+	if (!interaction.isChatInputCommand() || !interaction.guildId) return;
 
 	const command = commands.find((entry) => entry.data.name === interaction.commandName);
 
