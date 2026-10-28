@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { superForm } from 'sveltekit-superforms';
+	import { superForm, fieldProxy } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconServer from '@tabler/icons-svelte/icons/server';
@@ -19,6 +19,9 @@
 		id: 'claim',
 		validators: zod4Client(setupSettingsSchema)
 	});
+
+	const adminName = fieldProxy(create, 'name');
+	const adminEmail = fieldProxy(create, 'email');
 
 	const {
 		form: createData,
@@ -76,7 +79,7 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
 							<label class={label} for="claim-appName">App name</label>
-							<input id="claim-appName" name="appName" class={input} bind:value={$claimData.appName} />
+							<input id="claim-appName" name="appName" class={input} value={$claimData.appName ?? ''} />
 							{#if $claimErrors.appName}<p class={errorText}>{$claimErrors.appName.join(' ')}</p>{/if}
 						</div>
 						<div>
@@ -85,7 +88,7 @@
 								id="claim-description"
 								name="description"
 								class={input}
-								bind:value={$claimData.description}
+								value={$claimData.description ?? ''}
 							/>
 							{#if $claimErrors.description}
 								<p class={errorText}>{$claimErrors.description.join(' ')}</p>
@@ -98,7 +101,7 @@
 							id="claim-logo"
 							name="logo"
 							class={input}
-							bind:value={$claimData.logo}
+							value={$claimData.logo ?? ''}
 							placeholder="https://example.com/logo.png"
 						/>
 						{#if $claimErrors.logo}<p class={errorText}>{$claimErrors.logo.join(' ')}</p>{/if}
@@ -106,9 +109,13 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
 							<label class={label} for="claim-adapter">Panel adapter</label>
-							<select id="claim-adapter" name="adapter" class={input} bind:value={$claimData.adapter}>
-								<option value="mock">Mock</option>
-								<option value="calagopus">Calagopus</option>
+							<select id="claim-adapter" name="adapter" class={input}>
+								<option value="mock" selected={!$claimData.adapter || $claimData.adapter === 'mock'}>
+									Mock
+								</option>
+								<option value="calagopus" selected={$claimData.adapter === 'calagopus'}>
+									Calagopus
+								</option>
 							</select>
 						</div>
 						<div>
@@ -117,7 +124,7 @@
 								id="claim-panelUrl"
 								name="panelUrl"
 								class={input}
-								bind:value={$claimData.panelUrl}
+								value={$claimData.panelUrl ?? ''}
 								placeholder="https://panel.example.com"
 							/>
 							{#if $claimErrors.panelUrl}<p class={errorText}>{$claimErrors.panelUrl.join(' ')}</p>{/if}
@@ -130,7 +137,7 @@
 							name="panelToken"
 							type="password"
 							class={input}
-							bind:value={$claimData.panelToken}
+							value={$claimData.panelToken ?? ''}
 							placeholder={data.panel.tokenSet
 								? 'Leave blank to keep the current token'
 								: 'Required for Calagopus'}
@@ -175,7 +182,7 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div>
 						<label class={label} for="name">Admin name</label>
-						<input id="name" name="name" class={input} autocomplete="name" bind:value={$createData.name} />
+						<input id="name" name="name" class={input} autocomplete="name" bind:value={$adminName} />
 						{#if $createErrors.name}<p class={errorText}>{$createErrors.name.join(' ')}</p>{/if}
 					</div>
 					<div>
@@ -186,7 +193,7 @@
 							type="email"
 							class={input}
 							autocomplete="email"
-							bind:value={$createData.email}
+							bind:value={$adminEmail}
 						/>
 						{#if $createErrors.email}<p class={errorText}>{$createErrors.email.join(' ')}</p>{/if}
 					</div>
@@ -198,7 +205,7 @@
 							type="password"
 							class={input}
 							autocomplete="new-password"
-							bind:value={$createData.password}
+							value={$createData.password ?? ''}
 						/>
 						{#if $createErrors.password}<p class={errorText}>{$createErrors.password.join(' ')}</p>{/if}
 					</div>
@@ -210,7 +217,7 @@
 							type="password"
 							class={input}
 							autocomplete="new-password"
-							bind:value={$createData.confirmPassword}
+							value={$createData.confirmPassword ?? ''}
 						/>
 						{#if $createErrors.confirmPassword}
 							<p class={errorText}>{$createErrors.confirmPassword.join(' ')}</p>
@@ -225,7 +232,7 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
 							<label class={label} for="appName">App name</label>
-							<input id="appName" name="appName" class={input} bind:value={$createData.appName} />
+							<input id="appName" name="appName" class={input} value={$createData.appName ?? ''} />
 							{#if $createErrors.appName}<p class={errorText}>{$createErrors.appName.join(' ')}</p>{/if}
 						</div>
 						<div>
@@ -234,7 +241,7 @@
 								id="description"
 								name="description"
 								class={input}
-								bind:value={$createData.description}
+								value={$createData.description ?? ''}
 							/>
 							{#if $createErrors.description}
 								<p class={errorText}>{$createErrors.description.join(' ')}</p>
@@ -249,7 +256,7 @@
 								id="logo"
 								name="logo"
 								class="{input} pl-9"
-								bind:value={$createData.logo}
+								value={$createData.logo ?? ''}
 								placeholder="https://example.com/logo.png"
 							/>
 						</div>
@@ -264,9 +271,13 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
 							<label class={label} for="adapter">Adapter</label>
-							<select id="adapter" name="adapter" class={input} bind:value={$createData.adapter}>
-								<option value="mock">Mock</option>
-								<option value="calagopus">Calagopus</option>
+							<select id="adapter" name="adapter" class={input}>
+								<option value="mock" selected={!$createData.adapter || $createData.adapter === 'mock'}>
+									Mock
+								</option>
+								<option value="calagopus" selected={$createData.adapter === 'calagopus'}>
+									Calagopus
+								</option>
 							</select>
 						</div>
 						<div>
@@ -275,7 +286,7 @@
 								id="panelUrl"
 								name="panelUrl"
 								class={input}
-								bind:value={$createData.panelUrl}
+								value={$createData.panelUrl ?? ''}
 								placeholder="https://panel.example.com"
 							/>
 							{#if $createErrors.panelUrl}<p class={errorText}>{$createErrors.panelUrl.join(' ')}</p>{/if}
@@ -288,7 +299,7 @@
 							name="panelToken"
 							type="password"
 							class={input}
-							bind:value={$createData.panelToken}
+							value={$createData.panelToken ?? ''}
 							placeholder="Required for Calagopus"
 						/>
 						{#if $createErrors.panelToken}
