@@ -1,10 +1,10 @@
-import { error, fail } from '@sveltejs/kit';
-import { sql } from 'drizzle-orm';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { sql } from 'drizzle-orm';
+import { actionFailure } from '#lib/server/action-error.ts';
+import { adminFailure, requireAdmin } from '#lib/server/auth/admin.ts';
+import { formBoolean, formNumber, formString } from '#lib/server/forms.ts';
 import { db } from '#lib/server/db/index.ts';
 import { creditAccount, referral } from '#lib/server/db/ops.ts';
 import {
-	EarnError,
 	createEarnTask,
 	createVoucher,
 	deleteEarnTask,
@@ -16,20 +16,8 @@ import {
 } from '#lib/server/billing/earn.ts';
 import type { Actions, PageServerLoad } from './$types';
 
-const guard = (user: Parameters<typeof isAdmin>[0]) => {
-	if (!isAdmin(user)) error(403, { message: 'Administrator access is required.' });
-};
-
-const numberValue = (data: FormData, key: string, fallback = 0) => {
-	const value = Number(data.get(key) ?? fallback);
-	return Number.isFinite(value) ? value : fallback;
-};
-
-const message = (cause: unknown) =>
-	cause instanceof EarnError ? cause.message : 'Something went wrong. Please try again.';
-
 export const load: PageServerLoad = async ({ locals }) => {
-	guard(locals.user);
+	requireAdmin(locals);
 
 	const [vouchers, tasks, creditTotal, referralTotal] = await Promise.all([
 		listVouchers(),
@@ -53,80 +41,95 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	createVoucher: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
 
 		try {
-			const expires = String(data.get('expiresAt') ?? '').trim();
+			const expires = formString(data, 'expiresAt');
 			await createVoucher({
-				code: String(data.get('code') ?? ''),
-				description: String(data.get('description') ?? ''),
-				kind: String(data.get('kind') ?? 'credits') === 'resource' ? 'resource' : 'credits',
-				credits: numberValue(data, 'credits'),
-				cpu: numberValue(data, 'cpu'),
-				memory: numberValue(data, 'memory'),
-				disk: numberValue(data, 'disk'),
-				maxUses: numberValue(data, 'maxUses'),
+				code: formString(data, 'code'),
+				description: formString(data, 'description'),
+				kind: formString(data, 'kind') === 'resource' ? 'resource' : 'credits',
+				credits: formNumber(data, 'credits'),
+				cpu: formNumber(data, 'cpu'),
+				memory: formNumber(data, 'memory'),
+				disk: formNumber(data, 'disk'),
+				maxUses: formNumber(data, 'maxUses'),
 				expiresAt: expires || null,
 				enabled: true
 			});
 			return { created: 'Voucher created.' };
 		} catch (cause) {
-			return fail(400, { error: message(cause) });
+			return actionFailure(cause);
 		}
 	},
 
 	toggleVoucher: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
-		await updateVoucher(String(data.get('id') ?? ''), {
-			enabled: String(data.get('enabled') ?? '') === 'true'
+		await updateVoucher(formString(data, 'id'), {
+			enabled: formBoolean(data, 'enabled')
 		});
 		return { updated: true };
 	},
 
 	deleteVoucher: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
-		await deleteVoucher(String(data.get('id') ?? ''));
+		await deleteVoucher(formString(data, 'id'));
 		return { deleted: true };
 	},
 
 	createTask: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
 
 		try {
 			await createEarnTask({
-				title: String(data.get('title') ?? ''),
-				description: String(data.get('description') ?? ''),
-				url: String(data.get('url') ?? ''),
-				provider: String(data.get('provider') ?? 'linkvertise'),
-				reward: numberValue(data, 'reward'),
-				cooldownHours: numberValue(data, 'cooldownHours', 24),
-				minSeconds: numberValue(data, 'minSeconds', 15),
+				title: formString(data, 'title'),
+				description: formString(data, 'description'),
+				url: formString(data, 'url'),
+				provider: formString(data, 'provider') || 'linkvertise',
+				reward: formNumber(data, 'reward'),
+				cooldownHours: formNumber(data, 'cooldownHours', 24),
+				minSeconds: formNumber(data, 'minSeconds', 15),
 				enabled: true,
-				sortOrder: numberValue(data, 'sortOrder')
+				sortOrder: formNumber(data, 'sortOrder')
 			});
 			return { created: 'Task created.' };
 		} catch (cause) {
-			return fail(400, { error: message(cause) });
+			return actionFailure(cause);
 		}
 	},
 
 	toggleTask: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
-		await updateEarnTask(String(data.get('id') ?? ''), {
-			enabled: String(data.get('enabled') ?? '') === 'true'
+		await updateEarnTask(formString(data, 'id'), {
+			enabled: formBoolean(data, 'enabled')
 		});
 		return { updated: true };
 	},
 
 	deleteTask: async ({ locals, request }) => {
-		guard(locals.user);
+		const denied = adminFailure(locals);
+		if (denied) return denied;
+
 		const data = await request.formData();
-		await deleteEarnTask(String(data.get('id') ?? ''));
+		await deleteEarnTask(formString(data, 'id'));
 		return { deleted: true };
 	}
 };
+
+
+

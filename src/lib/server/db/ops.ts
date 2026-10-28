@@ -418,6 +418,7 @@ export const invitedUser = sqliteTable(
 		accountCreatedAt: timestamp('account_created_at'),
 		counted: integer('counted', { mode: 'boolean' }).notNull().default(false),
 		stillInServer: integer('still_in_server', { mode: 'boolean' }).notNull().default(true),
+		rewardedAt: integer('rewarded_at', { mode: 'timestamp_ms' }),
 		createdAt: timestamp('created_at')
 	},
 	(table) => [

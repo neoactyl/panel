@@ -1,5 +1,6 @@
-import { error, redirect } from '@sveltejs/kit';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { error, redirect } from '@sveltejs/kit';
+import { isAdmin, requireAdmin } from '#lib/server/auth/admin.ts';
+import { toInt } from '#lib/server/forms.ts';
 import { getAdapter } from '#lib/server/panel/adapter.ts';
 import {
 	getSoftwarePolicy,
@@ -11,11 +12,6 @@ import { softwarePolicySchema, emptySchema } from '#lib/schemas.ts';
 import { message, superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
-
-const parseId = (value: string) => {
-	const parsed = Number(value);
-	return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-};
 
 const resolveSoftware = async (groupId: number, softwareId: number) => {
 	const adapter = getAdapter();
@@ -32,10 +28,10 @@ const resolveSoftware = async (groupId: number, softwareId: number) => {
 };
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	if (!isAdmin(locals.user)) error(403, { message: 'Administrator access is required.' });
+	requireAdmin(locals);
 
-	const groupId = parseId(params.groupId);
-	const softwareId = parseId(params.softwareId);
+	const groupId = toInt(params.groupId);
+	const softwareId = toInt(params.softwareId);
 	if (groupId === null || softwareId === null) error(404, { message: 'Egg not found.' });
 
 	const { adapter, group, egg } = await resolveSoftware(groupId, softwareId);
@@ -88,8 +84,8 @@ export const actions: Actions = {
 			return message(form, 'Administrator access is required.', { status: 403 });
 		}
 
-		const groupId = parseId(params.groupId);
-		const softwareId = parseId(params.softwareId);
+		const groupId = toInt(params.groupId);
+		const softwareId = toInt(params.softwareId);
 		if (groupId === null || softwareId === null) {
 			return message(form, 'Egg not found.', { status: 404 });
 		}
@@ -143,7 +139,7 @@ export const actions: Actions = {
 			return message(form, 'Administrator access is required.', { status: 403 });
 		}
 
-		const softwareId = parseId(params.softwareId);
+		const softwareId = toInt(params.softwareId);
 		if (softwareId === null) {
 			return message(form, 'Egg not found.', { status: 404 });
 		}
@@ -152,3 +148,4 @@ export const actions: Actions = {
 		redirect(303, '/admin/software');
 	}
 };
+

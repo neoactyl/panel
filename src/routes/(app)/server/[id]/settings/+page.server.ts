@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+﻿import { fail } from '@sveltejs/kit';
 import { AdapterError, type Server } from '#lib/adapter/sdk.ts';
 import {
 	getRenewalSettings,
@@ -8,22 +8,13 @@ import {
 } from '#lib/server/billing/billing.ts';
 import { CreditError } from '#lib/server/billing/credits.ts';
 import { formatTimeRemaining, getRenewalWindow } from '#lib/renewal-window.ts';
+import { toInt } from '#lib/server/forms.ts';
 import { getBool } from '#lib/server/config/settings.ts';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { resourceTotals } from '#lib/server/quota/resources.ts';
 import { getEffectiveQuota } from '#lib/server/quota/user.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
 import type { Actions, PageServerLoad } from './$types';
-
-const positiveInt = (value: FormDataEntryValue | null) => {
-	const parsed = Number(String(value ?? '').trim());
-	return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
-};
-
-const nonNegativeInt = (value: FormDataEntryValue | null) => {
-	const parsed = Number(String(value ?? '').trim());
-	return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-};
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const renewal = getRenewalSettings();
@@ -79,11 +70,11 @@ export const actions: Actions = {
 		}
 
 		const data = await request.formData();
-		const cpu = positiveInt(data.get('cpu'));
-		const ram = positiveInt(data.get('ram'));
-		const disk = positiveInt(data.get('disk'));
-		const databases = nonNegativeInt(data.get('databases'));
-		const allocations = nonNegativeInt(data.get('allocations'));
+		const cpu = toInt(data.get('cpu'), 1);
+		const ram = toInt(data.get('ram'), 1);
+		const disk = toInt(data.get('disk'), 1);
+		const databases = toInt(data.get('databases'));
+		const allocations = toInt(data.get('allocations'));
 
 		if (cpu === null || ram === null || disk === null) {
 			return fail(400, { message: 'CPU, memory, and disk must be positive whole numbers.' });
@@ -264,3 +255,4 @@ export const actions: Actions = {
 		return { success: `Auto-renew ${enabled ? 'enabled' : 'disabled'}.` };
 	}
 };
+

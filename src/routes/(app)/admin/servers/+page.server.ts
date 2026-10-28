@@ -1,19 +1,10 @@
-import { fail } from '@sveltejs/kit';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { fail } from '@sveltejs/kit';
+import { adminFailure } from '#lib/server/auth/admin.ts';
 import { getAdapter } from '#lib/server/panel/adapter.ts';
 import { getPanelConfig } from '#lib/server/config/settings.ts';
+import { formString, toInt } from '#lib/server/forms.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
 import type { Actions, PageServerLoad } from './$types';
-
-const positiveInt = (value: FormDataEntryValue | null) => {
-	const parsed = Number(String(value ?? '').trim());
-	return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
-};
-
-const nonNegativeInt = (value: FormDataEntryValue | null) => {
-	const parsed = Number(String(value ?? '').trim());
-	return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-};
 
 export const load: PageServerLoad = async () => {
 	const panel = getPanelConfig();
@@ -35,17 +26,16 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	updateResources: async ({ locals, request }) => {
-		if (!isAdmin(locals.user)) {
-			return fail(403, { message: 'Administrator access is required.' });
-		}
+		const denied = adminFailure(locals);
+		if (denied) return denied;
 
 		const data = await request.formData();
-		const serverId = String(data.get('serverId') ?? '').trim();
-		const cpu = positiveInt(data.get('cpu'));
-		const ram = positiveInt(data.get('ram'));
-		const disk = positiveInt(data.get('disk'));
-		const databases = nonNegativeInt(data.get('databases'));
-		const allocations = nonNegativeInt(data.get('allocations'));
+		const serverId = formString(data, 'serverId');
+		const cpu = toInt(data.get('cpu'), 1);
+		const ram = toInt(data.get('ram'), 1);
+		const disk = toInt(data.get('disk'), 1);
+		const databases = toInt(data.get('databases'));
+		const allocations = toInt(data.get('allocations'));
 
 		if (!serverId) {
 			return fail(400, { message: 'Choose a server to update.' });
@@ -89,3 +79,4 @@ export const actions: Actions = {
 		}
 	}
 };
+

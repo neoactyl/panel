@@ -297,6 +297,7 @@ const statements = [
 		account_created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
 		counted INTEGER NOT NULL DEFAULT 0,
 		still_in_server INTEGER NOT NULL DEFAULT 1,
+		rewarded_at INTEGER,
 		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
 	sql`CREATE INDEX IF NOT EXISTS invited_users_inviter_idx ON invited_users (inviter_id, counted)`,
@@ -438,6 +439,20 @@ const migrateDiscordJ4rClaims = async () => {
 	`);
 };
 
+const migrateInvitedUsers = async () => {
+	const columns = new Set(
+		(
+			await db.all<{ name: string }>(
+				sql`SELECT name FROM pragma_table_info('invited_users')`
+			)
+		).map(({ name }) => name)
+	);
+
+	if (!columns.has('rewarded_at')) {
+		await db.run(sql`ALTER TABLE invited_users ADD COLUMN rewarded_at INTEGER`);
+	}
+};
+
 const migrateEarnTaskCompletion = async () => {
 	const columns = new Set(
 		(
@@ -471,6 +486,7 @@ export const ensureOperationalSchema = () => {
 			await migrateStorefrontItems();
 			await migrateErrorLog();
 			await migrateSoftwareSettings();
+			await migrateInvitedUsers();
 			await migrateEarnTaskCompletion();
 			await migrateDiscordJ4rClaims();
 		})().catch((cause) => {

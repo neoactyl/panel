@@ -1,9 +1,10 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+﻿import { error, fail, redirect } from '@sveltejs/kit';
 import { AdapterError, type CreateServer } from '#lib/adapter/sdk.ts';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { createServerBilling, getRenewalSettings } from '#lib/server/billing/billing.ts';
 import { addCredits, CreditError, getCreditBalance, spendCredits } from '#lib/server/billing/credits.ts';
 import { getBool, getDefaultServerLimits } from '#lib/server/config/settings.ts';
+import { toOptionalInt } from '#lib/server/forms.ts';
 import {
 	DEFAULT_SOFTWARE_POLICY,
 	effectiveSoftwarePolicy,
@@ -12,16 +13,6 @@ import {
 import { assertWithinQuota, remainingResources, resourceTotals } from '#lib/server/quota/resources.ts';
 import { getEffectiveQuota } from '#lib/server/quota/user.ts';
 import type { Actions, PageServerLoad } from './$types';
-
-const optionalInt = (value: FormDataEntryValue | null, minimum: number) => {
-	if (value === null) return undefined;
-
-	const raw = String(value).trim();
-	if (!raw) return undefined;
-
-	const parsed = Number(raw);
-	return Number.isInteger(parsed) && parsed >= minimum ? parsed : null;
-};
 
 const describeRange = (minimum: number, maximum: number, label: string) =>
 	Number.isFinite(maximum)
@@ -91,13 +82,13 @@ export const actions: Actions = {
 		const name = String(data.get('name') ?? '').trim();
 		const description = String(data.get('description') ?? '').trim();
 		const node = String(data.get('node') ?? '').trim();
-		const software = optionalInt(data.get('software'), 0);
-		const softwareGroup = optionalInt(data.get('softwareGroup'), 0);
-		const cpu = optionalInt(data.get('cpu'), 1);
-		const ram = optionalInt(data.get('ram'), 1);
-		const disk = optionalInt(data.get('disk'), 1);
-		const databases = optionalInt(data.get('databases'), 0);
-		const allocations = optionalInt(data.get('allocations'), 0);
+		const software = toOptionalInt(data.get('software'), 0);
+		const softwareGroup = toOptionalInt(data.get('softwareGroup'), 0);
+		const cpu = toOptionalInt(data.get('cpu'), 1);
+		const ram = toOptionalInt(data.get('ram'), 1);
+		const disk = toOptionalInt(data.get('disk'), 1);
+		const databases = toOptionalInt(data.get('databases'), 0);
+		const allocations = toOptionalInt(data.get('allocations'), 0);
 
 		if (name.length < 2) {
 			return fail(400, { message: 'Server name must be at least 2 characters.' });
@@ -356,3 +347,4 @@ export const actions: Actions = {
 		redirect(303, `/server/${serverId}/console`);
 	}
 };
+

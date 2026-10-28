@@ -562,7 +562,7 @@
 
 				<div class="mt-8 border-t border-white/10 pt-5 text-center">
 					<p class="text-xs leading-relaxed text-white/40">
-						This panel uses Neoactyl, licensed under
+						This panel uses <a href="https://neoactyl.app" target="_blank">Neoactyl</a>, licensed under
 						<a
 							href="https://creativecommons.org/licenses/by/4.0/"
 							target="_blank"

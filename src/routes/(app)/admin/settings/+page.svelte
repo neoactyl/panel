@@ -2,6 +2,8 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import IconDeviceFloppy from '@tabler/icons-svelte/icons/device-floppy';
+	import IconCheck from '@tabler/icons-svelte/icons/check';
+	import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
 	import IconPhoto from '@tabler/icons-svelte/icons/photo';
 	import IconWorld from '@tabler/icons-svelte/icons/world';
 	import IconServer from '@tabler/icons-svelte/icons/server';
@@ -23,6 +25,12 @@
 	const { enhance: settingsEnhance, message: settingsMessage, submitting: saving } = superForm(
 		data.settingsForm,
 		{ id: 'settings' }
+	);
+
+	const saveStatus = $derived(
+		$settingsMessage && typeof $settingsMessage !== 'string'
+			? ($settingsMessage.status as 'success' | 'error')
+			: null
 	);
 
 	const tabs: Array<{ id: SettingsTab; label: string; icon: typeof IconWorld }> = [
@@ -415,13 +423,27 @@
 		</div>
 	</section>
 
-	<div class="sticky bottom-4 flex justify-end">
+	<div class="sticky bottom-4 flex items-center justify-end gap-3">
+		<span aria-live="polite" class="text-xs font-semibold">
+			{#if $saving}
+				<span class="text-white/50">Saving…</span>
+			{:else if saveStatus === 'success'}
+				<span class="flex items-center gap-1.5 text-emerald-300">
+					<IconCheck class="h-4 w-4" /> Settings saved
+				</span>
+			{:else if saveStatus === 'error'}
+				<span class="flex items-center gap-1.5 text-red-300">
+					<IconAlertTriangle class="h-4 w-4" /> Not saved
+				</span>
+			{/if}
+		</span>
 		<button
 			type="submit"
-			class="flex items-center gap-2 bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-xl shadow-black/40 transition hover:bg-indigo-400"
+			disabled={$saving}
+			class="flex items-center gap-2 bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-xl shadow-black/40 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
 		>
 			<IconDeviceFloppy class="h-4 w-4" />
-			Save settings
+			{$saving ? 'Saving…' : 'Save settings'}
 		</button>
 	</div>
 </form>

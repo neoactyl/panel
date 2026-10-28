@@ -1,5 +1,5 @@
-import { error, redirect } from '@sveltejs/kit';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { error, redirect } from '@sveltejs/kit';
+import { isAdmin, requireAdmin } from '#lib/server/auth/admin.ts';
 import {
 	deleteStorefrontItem,
 	getStorefrontItem,
@@ -20,7 +20,7 @@ const optionalId = (raw: string) => {
 };
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	if (!isAdmin(locals.user)) error(403, { message: 'Administrator access is required.' });
+	requireAdmin(locals);
 
 	const item = await getStorefrontItem(params.id);
 	if (!item) error(404, { message: 'Storefront item not found.' });
@@ -140,3 +140,4 @@ export const actions: Actions = {
 		redirect(303, '/admin/storefront');
 	}
 };
+

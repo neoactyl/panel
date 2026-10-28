@@ -1,5 +1,5 @@
-import { error, redirect } from '@sveltejs/kit';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { redirect } from '@sveltejs/kit';
+import { isAdmin, requireAdmin } from '#lib/server/auth/admin.ts';
 import {
 	loadStorefrontCatalog,
 	saveStorefrontItem,
@@ -18,7 +18,7 @@ const optionalId = (raw: string) => {
 };
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!isAdmin(locals.user)) error(403, { message: 'Administrator access is required.' });
+	requireAdmin(locals);
 
 	const [catalog, itemForm] = await Promise.all([
 		loadStorefrontCatalog(),
@@ -91,3 +91,5 @@ export const actions: Actions = {
 		redirect(303, '/admin/storefront');
 	}
 };
+
+

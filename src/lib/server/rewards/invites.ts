@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { addCreditsWith, getCreditBalance } from '#lib/server/billing/credits.ts';
 import { account } from '#lib/server/db/auth.schema.ts';
 import { db } from '#lib/server/db/index.ts';
@@ -8,6 +8,11 @@ import {
 	invitedUser,
 	inviter
 } from '#lib/server/db/ops.ts';
+import {
+	isInviteCounted,
+	summarizeInvites,
+	type TrackedInvite
+} from '#lib/server/rewards/invite-stats.ts';
 import {
 	findInviteTier,
 	findNextInviteTier,
@@ -62,6 +67,14 @@ const discordIdentity = async (userId: string) => {
 	return rows.find((row) => row.providerId === 'discord') ?? null;
 };
 
+const trackedInviteColumns = {
+	discordId: invitedUser.discordId,
+	joinedAt: invitedUser.joinedAt,
+	stillInServer: invitedUser.stillInServer,
+	counted: invitedUser.counted,
+	rewardedAt: invitedUser.rewardedAt
+};
+
 export const recordInviteJoin = async ({
 	guildId,
 	memberId,
@@ -88,8 +101,10 @@ export const recordInviteJoin = async ({
 		return { recorded: false as const, reason: 'invalid_join_date' as const };
 	}
 
-	const minimumAge = config.inviteMinAccountAgeDays * 24 * 60 * 60 * 1000;
-	const counted = joined.getTime() - accountCreatedAt.getTime() >= minimumAge;
+	// Anti-alt: a fresh invite only counts once the invited account is old enough.
+	// The decision is frozen on first join and never re-evaluated, so a young
+	// account cannot become eligible later by leaving and rejoining.
+	const counted = isInviteCounted(joined, accountCreatedAt, config.inviteMinAccountAgeDays);
 
 	return db.transaction(async (tx) => {
 		await tx
@@ -108,6 +123,7 @@ export const recordInviteJoin = async ({
 				accountCreatedAt,
 				counted,
 				stillInServer: true,
+				rewardedAt: null,
 				createdAt: new Date()
 			})
 			.onConflictDoNothing()
@@ -115,10 +131,15 @@ export const recordInviteJoin = async ({
 			.get();
 
 		if (!inserted) {
+			// A rejoin only restores presence. `counted` and `rewarded_at` are left
+			// untouched, so the same Discord account can never be counted twice or
+			// reclaim a reward that was already paid out.
 			await tx
 				.update(invitedUser)
 				.set({ stillInServer: true })
-				.where(eq(invitedUser.discordId, memberId))
+				.where(
+					and(eq(invitedUser.discordId, memberId), eq(invitedUser.guildId, guildId))
+				)
 				.run();
 
 			return { recorded: false as const, reason: 'duplicate' as const };
@@ -174,31 +195,26 @@ export const getDiscordInviteState = async (userId: string) => {
 		};
 	}
 
-	const [record, profile] = await Promise.all([
+	const [record, profile, tracked] = await Promise.all([
 		db.select().from(inviter).where(eq(inviter.discordId, discord.accountId)).get(),
 		db
 			.select({ username: discordProfile.username })
 			.from(discordProfile)
 			.where(eq(discordProfile.userId, userId))
-			.get()
+			.get(),
+		db
+			.select(trackedInviteColumns)
+			.from(invitedUser)
+			.where(eq(invitedUser.inviterId, discord.accountId))
+			.all()
 	]);
 
-	const conditions = [
-		eq(invitedUser.inviterId, discord.accountId),
-		eq(invitedUser.counted, true)
-	];
+	const summary = summarizeInvites(tracked, {
+		requireStillMember: config.inviteRequireStillMember
+	});
 
-	if (config.inviteRequireStillMember) {
-		conditions.push(eq(invitedUser.stillInServer, true));
-	}
-
-	const valid = await db
-		.select({ discordId: invitedUser.discordId })
-		.from(invitedUser)
-		.where(and(...conditions))
-		.all();
-
-	const current = valid.length;
+	// `current` is the unpaid, valid invite count that drives the reward tiers.
+	const current = summary.claimable;
 	const tier = findInviteTier(current, config.inviteTiers) ?? null;
 
 	return {
@@ -231,6 +247,7 @@ export const claimDiscordInvites = async (userId: string) => {
 	}
 
 	const claimId = crypto.randomUUID();
+	const now = new Date();
 
 	const result = await db.transaction(async (tx) => {
 		const record = await tx
@@ -239,26 +256,20 @@ export const claimDiscordInvites = async (userId: string) => {
 			.where(eq(inviter.discordId, discord.accountId))
 			.get();
 
-		if (!record || record.currentInviteCount <= 0) {
+		if (!record) {
 			throw new InviteRewardError('You do not have any unclaimed invites yet.', 'NO_INVITES');
 		}
 
-		const conditions = [
-			eq(invitedUser.inviterId, discord.accountId),
-			eq(invitedUser.counted, true)
-		];
-
-		if (config.inviteRequireStillMember) {
-			conditions.push(eq(invitedUser.stillInServer, true));
-		}
-
-		const valid = await tx
-			.select({ discordId: invitedUser.discordId })
+		const tracked: TrackedInvite[] = await tx
+			.select(trackedInviteColumns)
 			.from(invitedUser)
-			.where(and(...conditions))
+			.where(eq(invitedUser.inviterId, discord.accountId))
 			.all();
 
-		const inviteCount = valid.length;
+		const summary = summarizeInvites(tracked, {
+			requireStillMember: config.inviteRequireStillMember
+		});
+		const inviteCount = summary.claimable;
 		const tier = findInviteTier(inviteCount, config.inviteTiers);
 
 		if (!tier || inviteCount < 1) {
@@ -267,7 +278,7 @@ export const claimDiscordInvites = async (userId: string) => {
 
 		const claimed = await tx
 			.update(inviter)
-			.set({ currentInviteCount: 0, updatedAt: new Date() })
+			.set({ currentInviteCount: 0, updatedAt: now })
 			.where(
 				and(
 					eq(inviter.discordId, discord.accountId),
@@ -284,10 +295,22 @@ export const claimDiscordInvites = async (userId: string) => {
 			);
 		}
 
+		// Stamp the exact invites being paid for. Rejoins never clear this stamp, so
+		// the same invite can never be rewarded twice.
+		const paidConditions = [
+			eq(invitedUser.inviterId, discord.accountId),
+			eq(invitedUser.counted, true),
+			isNull(invitedUser.rewardedAt)
+		];
+
+		if (config.inviteRequireStillMember) {
+			paidConditions.push(eq(invitedUser.stillInServer, true));
+		}
+
 		await tx
 			.update(invitedUser)
-			.set({ counted: false })
-			.where(and(eq(invitedUser.inviterId, discord.accountId), eq(invitedUser.counted, true)))
+			.set({ rewardedAt: now })
+			.where(and(...paidConditions))
 			.run();
 
 		await tx
@@ -298,7 +321,7 @@ export const claimDiscordInvites = async (userId: string) => {
 				inviterId: discord.accountId,
 				inviteCount,
 				rewardCoins: tier.coins,
-				claimedAt: new Date()
+				claimedAt: now
 			})
 			.run();
 

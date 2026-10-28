@@ -1,4 +1,5 @@
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
+import type { User } from 'better-auth';
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { session, user } from '#lib/server/db/auth.schema.ts';
@@ -11,11 +12,18 @@ export const isAdmin = (value: RoleUser) =>
 	'role' in value &&
 	(value as { role?: unknown }).role === 'admin';
 
-export const requireAdmin = (locals: { user?: unknown }) => {
-	if (!isAdmin(locals.user)) {
+/** Throw a 403 unless the request belongs to an administrator. */
+export const requireAdmin = (locals: App.Locals): User => {
+	if (!isAdmin(locals.user) || !locals.user) {
 		error(403, { message: 'Administrator access is required.' });
 	}
+
+	return locals.user;
 };
+
+/** Return a 403 form failure unless the request belongs to an administrator. */
+export const adminFailure = (locals: App.Locals) =>
+	isAdmin(locals.user) ? null : fail(403, { message: 'Administrator access is required.' });
 
 let adminState: Promise<boolean> | undefined;
 
@@ -39,7 +47,7 @@ export const hasAdmin = (): Promise<boolean> => {
 
 export const setUserRole = async (userId: string, role: 'admin' | 'user') => {
 	await db.update(user).set({ role }).where(eq(user.id, userId)).run();
-	await invalidateAdminCache();
+	invalidateAdminCache();
 };
 
 export const setUserBanned = async (

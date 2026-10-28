@@ -1,6 +1,5 @@
-import { error } from '@sveltejs/kit';
-import { count, sql } from 'drizzle-orm';
-import { isAdmin } from '#lib/server/auth/admin.ts';
+﻿import { count, sql } from 'drizzle-orm';
+import { requireAdmin } from '#lib/server/auth/admin.ts';
 import { getAdapter } from '#lib/server/panel/adapter.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/auth.schema.ts';
@@ -11,10 +10,6 @@ import { emptySchema } from '#lib/schemas.ts';
 import { message, superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
-
-const guard = (current: Parameters<typeof isAdmin>[0]) => {
-	if (!isAdmin(current)) error(403, { message: 'Administrator access is required.' });
-};
 
 const dbCheck = async () => {
 	const started = performance.now();
@@ -31,7 +26,7 @@ const dbCheck = async () => {
 };
 
 export const load: PageServerLoad = async ({ locals }) => {
-	guard(locals.user);
+	requireAdmin(locals);
 
 	const metrics = getMetrics();
 	const database = await dbCheck();
@@ -85,8 +80,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	reset: async ({ locals, request }) => {
 		const form = await superValidate(request, zod4(emptySchema), { id: 'reset' });
-		guard(locals.user);
+		requireAdmin(locals);
 		resetMetrics();
 		return message(form, 'Counters reset.');
 	}
 };
+

@@ -319,7 +319,7 @@ export const actions: Actions = {
     });
 
     if (!form.valid) {
-      return message(form, firstFormError(form), { status: 400 });
+      return message(form, { status: "error", text: firstFormError(form) }, { status: 400 });
     }
 
     const data = form.data as Record<string, unknown>;
@@ -371,13 +371,13 @@ export const actions: Actions = {
 
     if (values["panel.adapter"] === "calagopus") {
       if (!/^https?:\/\/.+/i.test(values["panel.url"] ?? "")) {
-        return message(form, "A valid Calagopus panel URL is required.", {
+        return message(form, { status: "error", text: "A valid Calagopus panel URL is required." }, {
           status: 400,
         });
       }
 
       if (!nextToken) {
-        return message(form, "A panel API token is required for Calagopus.", {
+        return message(form, { status: "error", text: "A panel API token is required for Calagopus." }, {
           status: 400,
         });
       }
@@ -387,13 +387,13 @@ export const actions: Actions = {
 
     if (logoEntry instanceof File && logoEntry.size > 0) {
       if (!allowedImage.has(logoEntry.type)) {
-        return message(form, "Upload a PNG, JPEG, WebP, or GIF logo.", {
+        return message(form, { status: "error", text: "Upload a PNG, JPEG, WebP, or GIF logo." }, {
           status: 400,
         });
       }
 
       if (logoEntry.size > 512 * 1024) {
-        return message(form, "The logo must be 512 KB or smaller.", {
+        return message(form, { status: "error", text: "The logo must be 512 KB or smaller." }, {
           status: 400,
         });
       }
@@ -419,6 +419,6 @@ export const actions: Actions = {
       metadata: { keys: Object.keys(values) },
     });
 
-    return message(form, "Settings saved.");
+    return message(form, { status: "success", text: "Settings saved." });
   },
 };

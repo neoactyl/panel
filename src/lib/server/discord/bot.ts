@@ -27,7 +27,7 @@ const botGlobals = globalThis as typeof globalThis & {
   __neoactylDiscordBotV2?: BotState;
 };
 
-const state = (botGlobals.__neoactylDiscordBotV2 ??= {
+const state: BotState = (botGlobals.__neoactylDiscordBotV2 ??= {
   client: null,
   ready: false,
   starting: null,
@@ -162,7 +162,7 @@ const findInviter = (
     candidates.push({ code, inviterId: cached.inviterId });
   }
 
-  if (candidates.length === 1) return candidates[0].inviterId;
+  if (candidates.length === 1) return candidates[0]?.inviterId ?? null;
 
   if (candidates.length > 1) {
     console.warn(
@@ -244,7 +244,7 @@ const enqueue = (event: DiscordInviteEvent) => {
   void drainQueue();
 };
 
-const processMemberAdd = async (member: GuildMember, manageGuild: bigint) => {
+const processMemberAdd = async (member: GuildMember) => {
   const guild = member.guild;
   const previous =
     state.inviteCache.get(guild.id) ?? new Map<string, CachedInvite>();
@@ -295,20 +295,14 @@ const processMemberAdd = async (member: GuildMember, manageGuild: bigint) => {
     memberIsBot: false,
     joinedAt: (member.joinedAt ?? new Date()).toISOString(),
   });
-
-  void manageGuild;
 };
 
-const handleMemberAdd = (
-  member: GuildMember,
-  guildId: string,
-  manageGuild: bigint,
-) => {
+const handleMemberAdd = (member: GuildMember, guildId: string) => {
   if (member.user.bot || member.guild.id !== guildId) return;
 
   // Serialize joins so two members joining together don't corrupt each other's diff.
   state.joinChain = state.joinChain
-    .then(() => processMemberAdd(member, manageGuild))
+    .then(() => processMemberAdd(member))
     .catch((cause) => {
       console.error("[discord] Unexpected member join handler failure.", cause);
     });
@@ -381,7 +375,7 @@ const buildClient = async (guildId: string) => {
   }
 
   client.on(Events.GuildMemberAdd, (member) =>
-    handleMemberAdd(member, guildId, manageGuild),
+    handleMemberAdd(member, guildId),
   );
 
   client.on(Events.GuildMemberRemove, (member) => {
