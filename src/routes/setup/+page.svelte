@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconServer from '@tabler/icons-svelte/icons/server';
@@ -19,9 +19,6 @@
 		id: 'claim',
 		validators: zod4Client(setupSettingsSchema)
 	});
-
-	const adminName = fieldProxy(create, 'name');
-	const adminEmail = fieldProxy(create, 'email');
 
 	const {
 		form: createData,
@@ -182,7 +179,7 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div>
 						<label class={label} for="name">Admin name</label>
-						<input id="name" name="name" class={input} autocomplete="name" bind:value={$adminName} />
+						<input id="name" name="name" class={input} autocomplete="name" value={$createData.name ?? ''} />
 						{#if $createErrors.name}<p class={errorText}>{$createErrors.name.join(' ')}</p>{/if}
 					</div>
 					<div>
@@ -193,7 +190,7 @@
 							type="email"
 							class={input}
 							autocomplete="email"
-							bind:value={$adminEmail}
+							value={$createData.email ?? ''}
 						/>
 						{#if $createErrors.email}<p class={errorText}>{$createErrors.email.join(' ')}</p>{/if}
 					</div>
