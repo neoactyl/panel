@@ -71,6 +71,7 @@
 	let { data }: PageProps = $props();
 
 	let current = $state<AfkState>(data.state);
+	let stateSyncedAt = $state(Date.now());
 	let phase = $state<
 		'idle' | 'requesting' | 'connecting' | 'live' | 'paused' | 'challenge' | 'cooldown' | 'disabled' | 'error'
 	>('idle');
@@ -97,6 +98,11 @@
 	let heartbeatTimer: ReturnType<typeof setTimeout> | undefined;
 	let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
+	const applyState = (next: AfkState) => {
+		current = next;
+		stateSyncedAt = Date.now();
+	};
+
 	const cooldownSeconds = $derived(
 		current.cooldownUntil
 			? Math.max(0, Math.ceil((Date.parse(current.cooldownUntil) - nowTick) / 1000))
@@ -113,11 +119,28 @@
 			? Math.min(100, (current.earnedToday / current.dailyCapMinutes) * 100)
 			: 0
 	);
+
+	const counting = $derived(
+		phase === 'live' &&
+			!paused &&
+			!challenge &&
+			cooldownSeconds <= 0 &&
+			(activityReason === 'eligible' || activityReason === '')
+	);
+	const elapsedSinceSync = $derived(
+		counting
+			? Math.min(
+					Math.max(0, (nowTick - stateSyncedAt) / 1000),
+					Math.max(0, current.nextCreditInSeconds)
+				)
+			: 0
+	);
+	const nextCreditRemaining = $derived(Math.max(0, current.nextCreditInSeconds - elapsedSinceSync));
 	const pendingPercent = $derived(
 		current.minimumPayoutMinutes > 0
 			? Math.min(
 					100,
-					(current.pendingSeconds / (current.minimumPayoutMinutes * 60)) * 100
+					((current.pendingSeconds + elapsedSinceSync) / (current.minimumPayoutMinutes * 60)) * 100
 				)
 			: 0
 	);
@@ -235,7 +258,7 @@
 
 	const handleServerMessage = (message: ServerMessage) => {
 		if (message.type === 'hello') {
-			current = message.state;
+			applyState(message.state);
 			socketUrl = socket?.url ?? socketUrl;
 			phase = current.enabled ? 'live' : 'disabled';
 			paused = false;
@@ -250,7 +273,7 @@
 		}
 
 		if (message.type === 'tick') {
-			current = message.state;
+			applyState(message.state);
 			lastSync = new Date();
 			activityReason = message.reason ?? activityReason;
 
@@ -310,7 +333,7 @@
 		}
 
 		if (message.type === 'paused') {
-			current = message.state;
+			applyState(message.state);
 			paused = true;
 			challenge = null;
 			phase = 'paused';
@@ -319,7 +342,7 @@
 		}
 
 		if (message.type === 'resumed') {
-			current = message.state;
+			applyState(message.state);
 			paused = false;
 			phase = 'live';
 			activityReason = '';
@@ -356,9 +379,7 @@
 		ws.onmessage = (event) => {
 			try {
 				handleServerMessage(JSON.parse(String(event.data)) as ServerMessage);
-			} catch {
-				/* Ignore malformed frames. */
-			}
+			} catch {}
 		};
 
 		ws.onerror = () => {
@@ -442,7 +463,7 @@
 				return;
 			}
 
-			if (payload.state) current = payload.state;
+			if (payload.state) applyState(payload.state);
 			seq = 0;
 			interactions = 0;
 			sessionEarned = 0;
@@ -495,6 +516,7 @@
 			paused = false;
 			phase = 'live';
 			activityReason = '';
+			stateSyncedAt = Date.now();
 			socket.send(JSON.stringify({ type: 'resume', visible, focused }));
 		} else {
 			paused = true;
@@ -516,7 +538,7 @@
 
 		const clock = setInterval(() => {
 			nowTick = Date.now();
-		}, 1000);
+		}, 100);
 
 		const onVisibility = () => {
 			setPresence();
@@ -554,9 +576,7 @@
 			if (socket) {
 				try {
 					socket.close(1000, 'Page closed');
-				} catch {
-					/* Ignore. */
-				}
+				} catch {}
 			}
 			socket = null;
 			window.removeEventListener('pointerdown', markInteraction);
@@ -677,9 +697,15 @@
 
 			<div class="mt-4 h-1 w-full overflow-hidden bg-white/5">
 				<div
-					class="h-full bg-amber-400 transition-all duration-1000 ease-linear"
-					style="width: {challengeSeconds > 0 && current.challengeWindowSeconds > 0
-						? Math.min(100, (challengeSeconds / current.challengeWindowSeconds) * 100)
+					class="h-full bg-amber-400"
+					style="width: {challenge && current.challengeWindowSeconds > 0
+						? Math.max(
+								0,
+								Math.min(
+									100,
+									((challenge.deadline - nowTick) / 1000 / current.challengeWindowSeconds) * 100
+								)
+							)
 						: 0}%"
 				></div>
 			</div>
@@ -818,8 +844,8 @@
 				</div>
 				<div class="border border-white/10 bg-black/20 p-4">
 					<div class="text-[10px] tracking-widest text-white/35 uppercase">Next credit</div>
-					<div class="mt-1 text-2xl font-semibold text-white">
-						{current.nextCreditInSeconds <= 0 ? 'Ready' : `${current.nextCreditInSeconds}s`}
+					<div class="mt-1 text-2xl font-semibold text-white tabular-nums">
+						{nextCreditRemaining <= 0 ? 'Ready' : `${Math.ceil(nextCreditRemaining)}s`}
 					</div>
 					<div class="mt-2 h-1 w-full overflow-hidden bg-white/5">
 						<div class="h-full bg-indigo-400" style="width: {pendingPercent}%"></div>
