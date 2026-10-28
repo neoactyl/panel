@@ -36,18 +36,6 @@
 		submitting: claimSubmitting
 	} = claim;
 
-	// Seed defaults into the stores so validation sees what the inputs show
-	for (const f of [createData, claimData]) {
-		f.update(($f) => ({
-			...$f,
-			appName: $f.appName || data.branding.name,
-			description: $f.description || data.branding.description,
-			logo: $f.logo || data.branding.logo || '',
-			adapter: $f.adapter || (data.panel.adapter === 'calagopus' ? 'calagopus' : 'mock'),
-			panelUrl: $f.panelUrl || data.panel.url || ''
-		}));
-	}
-
 	const input =
 		'w-full border border-white/10 bg-[#121212] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none';
 	const label = 'mb-1.5 block text-[11px] font-semibold tracking-wider text-white/50 uppercase';
