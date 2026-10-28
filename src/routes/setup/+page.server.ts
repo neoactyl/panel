@@ -9,11 +9,7 @@ import {
   loadSettings,
   updateSettings,
 } from "#lib/server/config/settings.ts";
-import { setupCreateSchema } from "#lib/schemas.ts";
-import { zod4 } from "sveltekit-superforms/adapters";
-import { superValidate, message } from "sveltekit-superforms/server";
 import { asc, count, eq } from "drizzle-orm";
-import type { z } from "zod";
 import type { Actions, PageServerLoad } from "./$types";
 
 const userCount = async () => {
@@ -29,6 +25,11 @@ const firstUser = () =>
     .limit(1)
     .get();
 
+const str = (form: FormData, key: string): string => {
+  const value = form.get(key);
+  return typeof value === "string" ? value : "";
+};
+
 export const load: PageServerLoad = async ({ locals }) => {
   if (await hasAdmin()) {
     redirect(302, "/admin");
@@ -41,18 +42,14 @@ export const load: PageServerLoad = async ({ locals }) => {
   const panel = getPanelConfig();
 
   return {
-    form: await superValidate(
-      {
-        appName: "Neoactyl",
-        description: "",
-        logo: "",
-        adapter: panel.adapter === "calagopus" ? "calagopus" : "mock",
-        panelUrl: panel.url ?? "",
-        panelToken: panel.token ?? "",
-      },
-      zod4(setupCreateSchema),
-      { id: "setup" },
-    ),
+    form: {
+      appName: "Neoactyl",
+      description: "",
+      logo: "",
+      adapter: panel.adapter === "calagopus" ? "calagopus" : "mock",
+      panelUrl: panel.url ?? "",
+      panelToken: panel.token ?? "",
+    },
     branding: {
       name: "Neoactyl",
       logo: "",
@@ -67,17 +64,26 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
   setup: async (event) => {
-    const form = await superValidate(event.request, zod4(setupCreateSchema), {
-      id: "setup",
-    });
+    const form = await event.request.formData();
 
-    if (!form.valid) {
-      return message(form, "Please review the highlighted fields.", {
-        status: 400,
-      });
+    const name = str(form, "name");
+    const email = str(form, "email").trim().toLowerCase();
+    const password = str(form, "password");
+    const confirmPassword = str(form, "confirmPassword");
+    const appName = str(form, "appName") || "Neoactyl";
+    const description = str(form, "description") || "Game server management";
+    const logo = str(form, "logo");
+    const adapter = str(form, "adapter");
+    const panelUrl = str(form, "panelUrl");
+    const panelToken = str(form, "panelToken");
+
+    if (!name || !email || !password || !confirmPassword) {
+      return { status: 400, body: "All fields are required." };
     }
 
-    const email = form.data.email.trim().toLowerCase();
+    if (password !== confirmPassword) {
+      return { status: 400, body: "Passwords do not match." };
+    }
 
     const existing = await db
       .select({ id: user.id })
@@ -86,33 +92,31 @@ export const actions: Actions = {
       .limit(1);
 
     if (existing.length > 0) {
-      return message(form, "That email already exists. Sign in first.", {
-        status: 400,
-      });
+      return { status: 400, body: "That email already exists. Sign in first." };
     }
 
-    const token = form.data.panelToken?.trim() ?? "";
-
-    if (form.data.adapter === "calagopus") {
-      if (!/^https?:\/\/.+/i.test(form.data.panelUrl ?? "")) {
-        return message(form, "A valid Calagopus panel URL is required.", {
+    if (adapter === "calagopus") {
+      if (!/^https?:\/\/.+/i.test(panelUrl)) {
+        return {
           status: 400,
-        });
+          body: "A valid Calagopus panel URL is required.",
+        };
       }
-      if (!token) {
-        return message(form, "A panel API token is required for Calagopus.", {
+      if (!panelToken) {
+        return {
           status: 400,
-        });
+          body: "A panel API token is required for Calagopus.",
+        };
       }
     }
 
     await updateSettings({
-      "brand.name": form.data.appName || "Neoactyl",
-      "brand.logo": form.data.logo ?? "",
-      "brand.description": form.data.description || "Game server management",
-      "panel.adapter": form.data.adapter,
-      "panel.url": form.data.panelUrl ?? "",
-      "panel.token": !token ? getPanelConfig().token : token,
+      "brand.name": appName,
+      "brand.logo": logo,
+      "brand.description": description,
+      "panel.adapter": adapter,
+      "panel.url": panelUrl,
+      "panel.token": !panelToken ? getPanelConfig().token : panelToken,
     });
     await loadSettings(true);
     resetAdapter();
@@ -121,22 +125,22 @@ export const actions: Actions = {
 
     try {
       created = await getAuth().api.signUpEmail({
-        body: { name: form.data.name, email, password: form.data.password },
+        body: { name, email, password },
       });
     } catch {
-      return message(form, "Unable to create the administrator account.", {
+      return {
         status: 400,
-      });
+        body: "Unable to create the administrator account.",
+      };
     }
 
     const oldest = await firstUser();
 
     if (!oldest || oldest.id !== created.user.id) {
-      return message(
-        form,
-        "Another account was created first. Sign in with the first account.",
-        { status: 409 },
-      );
+      return {
+        status: 409,
+        body: "Another account was created first. Sign in with the first account.",
+      };
     }
 
     await setUserRole(created.user.id, "admin");

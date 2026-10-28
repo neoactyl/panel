@@ -1,24 +1,15 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
-	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import logo from '#lib/assets/logo.svg';
-	import { setupCreateSchema } from '#lib/schemas.ts';
 
 	let { data }: App.PageData = $props();
 
 	const sf = superForm(data.form, {
-		id: 'setup',
-		validators: zod4Client(setupCreateSchema)
+		id: 'setup'
 	});
 
-	const {
-		form,
-		errors,
-		message,
-		submitting,
-		enhance
-	} = sf;
+	const { form, message, submitting, enhance } = sf;
 
 	const input =
 		'w-full border border-white/10 bg-[#121212] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none';
@@ -53,23 +44,19 @@
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div>
 					<label class={label} for="name">Name</label>
-					<input id="name" name="name" class={input} value={$form.name ?? ''} autocomplete="name" />
-					{#if $errors.name}<p class={errorText}>{$errors.name.join(' ')}</p>{/if}
+					<input id="name" name="name" class={input} value={$form.name ?? ''} autocomplete="name" required />
 				</div>
 				<div>
 					<label class={label} for="email">Email</label>
-					<input id="email" name="email" type="email" class={input} value={$form.email ?? ''} autocomplete="email" />
-					{#if $errors.email}<p class={errorText}>{$errors.email.join(' ')}</p>{/if}
+					<input id="email" name="email" type="email" class={input} value={$form.email ?? ''} autocomplete="email" required />
 				</div>
 				<div>
 					<label class={label} for="password">Password</label>
-					<input id="password" name="password" type="password" class={input} value={$form.password ?? ''} autocomplete="new-password" />
-					{#if $errors.password}<p class={errorText}>{$errors.password.join(' ')}</p>{/if}
+					<input id="password" name="password" type="password" class={input} value={$form.password ?? ''} autocomplete="new-password" required />
 				</div>
 				<div>
 					<label class={label} for="confirmPassword">Confirm password</label>
-					<input id="confirmPassword" name="confirmPassword" type="password" class={input} value={$form.confirmPassword ?? ''} autocomplete="new-password" />
-					{#if $errors.confirmPassword}<p class={errorText}>{$errors.confirmPassword.join(' ')}</p>{/if}
+					<input id="confirmPassword" name="confirmPassword" type="password" class={input} value={$form.confirmPassword ?? ''} autocomplete="new-password" required />
 				</div>
 			</div>
 
@@ -81,12 +68,10 @@
 					<div>
 						<label class={label} for="appName">App name</label>
 						<input id="appName" name="appName" class={input} value={$form.appName ?? ''} />
-						{#if $errors.appName}<p class={errorText}>{$errors.appName.join(' ')}</p>{/if}
 					</div>
 					<div>
 						<label class={label} for="description">Description</label>
 						<input id="description" name="description" class={input} value={$form.description ?? ''} />
-						{#if $errors.description}<p class={errorText}>{$errors.description.join(' ')}</p>{/if}
 					</div>
 				</div>
 				<div class="mt-4">
@@ -95,7 +80,6 @@
 						<IconShieldLock class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
 						<input id="logo" name="logo" class="{input} pl-9" value={$form.logo ?? ''} placeholder="https://example.com/logo.png" />
 					</div>
-					{#if $errors.logo}<p class={errorText}>{$errors.logo.join(' ')}</p>{/if}
 				</div>
 			</div>
 
