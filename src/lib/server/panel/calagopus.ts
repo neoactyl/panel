@@ -25,6 +25,7 @@ import {
   type SoftwareGroup,
   type SoftwareVariable,
   type UpdateServer,
+  type UpdateNode,
   type User,
   type WebsocketCredentials,
 } from "#lib/adapter/sdk.ts";
@@ -220,6 +221,7 @@ export class Calagopus extends Adapter {
     activities: false,
     resources: true,
     accounts: { link: true, create: true },
+    nodes: { list: true, update: true },
   };
 
   async connect(): Promise<boolean> {
@@ -449,6 +451,55 @@ export class Calagopus extends Adapter {
     });
   }
 
+  override async updateNode(id: string, input: UpdateNode): Promise<Node> {
+    const body: Record<string, unknown> = {};
+
+    if (input.deploymentEnabled !== undefined) {
+      body.deployment_enabled = input.deploymentEnabled;
+    }
+
+    if (input.maintenanceEnabled !== undefined) {
+      body.maintenance_enabled = input.maintenanceEnabled;
+    }
+
+    if (input.memory !== undefined) {
+      body.memory = input.memory;
+    }
+
+    if (input.disk !== undefined) {
+      body.disk = input.disk;
+    }
+
+    if (input.allocations !== undefined) {
+      body.feature_limits = {
+        ...(await this.#cached(
+          `node:${id}:limits`,
+          Calagopus.METADATA_TTL,
+          async () => {
+            const servers = await this.#list<CalagopusServer>(
+              "/api/admin/servers",
+              "servers",
+            );
+            const server = servers.find((entry) => entry.node === id);
+            return server?.feature_limits ?? {};
+          },
+        )),
+        allocations: input.allocations,
+      };
+    }
+
+    await this.#jsonRequest(`/api/admin/nodes/${id}`, "PATCH", body);
+
+    const nodes = await this.getNodes();
+    const node = nodes.find((entry) => entry.id === id);
+
+    if (!node) {
+      throw new AdapterError(`Node ${id} was not found`, "NOT_FOUND");
+    }
+
+    return node;
+  }
+
   override async getNodes(): Promise<Node[]> {
     return this.#cached("nodes:detailed", Calagopus.METADATA_TTL, async () => {
       const [nodes, capacities] = await Promise.all([
@@ -505,6 +556,8 @@ export class Calagopus extends Adapter {
             allocations,
             available: reason === undefined,
             reason,
+            deploymentEnabled: node.deployment_enabled !== false,
+            maintenanceEnabled: node.maintenance_enabled === true,
           };
         }),
       );

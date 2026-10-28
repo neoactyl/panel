@@ -180,6 +180,12 @@ const statements = [
 		earned_today INTEGER NOT NULL DEFAULT 0,
 		day TEXT NOT NULL DEFAULT '',
 		total_earned INTEGER NOT NULL DEFAULT 0,
+		strikes INTEGER NOT NULL DEFAULT 0,
+		cooldown_until INTEGER,
+		last_session_id TEXT,
+		last_seq INTEGER NOT NULL DEFAULT 0,
+		last_client_ip TEXT,
+		last_user_agent TEXT,
 		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
 	sql`CREATE TABLE IF NOT EXISTS earn_task (
@@ -474,6 +480,33 @@ const migrateEarnTaskCompletion = async () => {
 	);
 };
 
+const migrateAfkSession = async () => {
+	const columns = new Set(
+		(await db.all<{ name: string }>(sql`SELECT name FROM pragma_table_info('afk_session')`)).map(
+			({ name }) => name
+		)
+	);
+
+	if (!columns.has('strikes')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN strikes INTEGER NOT NULL DEFAULT 0`);
+	}
+	if (!columns.has('cooldown_until')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN cooldown_until INTEGER`);
+	}
+	if (!columns.has('last_session_id')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN last_session_id TEXT`);
+	}
+	if (!columns.has('last_seq')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN last_seq INTEGER NOT NULL DEFAULT 0`);
+	}
+	if (!columns.has('last_client_ip')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN last_client_ip TEXT`);
+	}
+	if (!columns.has('last_user_agent')) {
+		await db.run(sql`ALTER TABLE afk_session ADD COLUMN last_user_agent TEXT`);
+	}
+};
+
 export const ensureOperationalSchema = () => {
 	if (!ready) {
 		ready = (async () => {
@@ -488,6 +521,7 @@ export const ensureOperationalSchema = () => {
 			await migrateSoftwareSettings();
 			await migrateInvitedUsers();
 			await migrateEarnTaskCompletion();
+			await migrateAfkSession();
 			await migrateDiscordJ4rClaims();
 		})().catch((cause) => {
 			ready = undefined;

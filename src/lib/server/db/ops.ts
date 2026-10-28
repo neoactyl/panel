@@ -220,6 +220,12 @@ export const afkSession = sqliteTable('afk_session', {
 	earnedToday: integer('earned_today').notNull().default(0),
 	day: text('day').notNull().default(''),
 	totalEarned: integer('total_earned').notNull().default(0),
+	strikes: integer('strikes').notNull().default(0),
+	cooldownUntil: integer('cooldown_until', { mode: 'timestamp_ms' }),
+	lastSessionId: text('last_session_id'),
+	lastSeq: integer('last_seq').notNull().default(0),
+	lastClientIp: text('last_client_ip'),
+	lastUserAgent: text('last_user_agent'),
 	updatedAt: timestamp('updated_at')
 });
 

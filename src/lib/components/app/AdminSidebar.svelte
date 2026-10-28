@@ -30,6 +30,7 @@
 				{ href: '/admin', label: 'Overview', icon: IconLayoutDashboard, exact: true },
 				{ href: '/admin/users', label: 'Users', icon: IconUsers, exact: false },
 				{ href: '/admin/servers', label: 'Servers', icon: IconServer, exact: false },
+			{ href: '/admin/nodes', label: 'Nodes', icon: IconServer, exact: false },
 				{ href: '/admin/storefront', label: 'Storefront', icon: IconShoppingBag, exact: false },
 				{ href: '/admin/economy', label: 'Economy', icon: IconCoin, exact: false },
 				{ href: '/admin/credits', label: 'Credit top-ups', icon: IconCreditCard, exact: false },

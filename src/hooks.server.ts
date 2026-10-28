@@ -30,6 +30,11 @@ const rewardsLimiter = new RetryAfterRateLimiter({
 	IPUA: [60, 'm']
 });
 
+const afkSessionLimiter = new RetryAfterRateLimiter({
+	IP: [40, '10m'],
+	IPUA: [20, '10m']
+});
+
 const limiterFor = (method: string, pathname: string) => {
 	if (method !== 'POST') return undefined;
 
@@ -39,6 +44,9 @@ const limiterFor = (method: string, pathname: string) => {
 	}
 	if (pathname.startsWith('/api/auth/')) return authLimiter;
 	if (pathname === '/api/adapter') return adapterLimiter;
+	// The gateway signs every internal request; the browser cannot reach it.
+	if (pathname.startsWith('/api/afk/internal/')) return undefined;
+	if (pathname === '/api/afk/session') return afkSessionLimiter;
 	if (
 		pathname.startsWith('/afk') ||
 		pathname.startsWith('/rewards') ||

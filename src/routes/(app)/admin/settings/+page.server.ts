@@ -41,7 +41,17 @@ type ExtraField = {
   label: string;
   type: "text" | "number" | "boolean" | "secret";
   placeholder?: string;
+  help?: string;
+  min?: number;
+  max?: number;
 };
+
+const afkField = (
+  key: SettingKey,
+  label: string,
+  type: "number" | "boolean",
+  help: string,
+): ExtraField => ({ key, label, type, help });
 
 type SettingsTab =
   "general" | "infrastructure" | "economy" | "integrations" | "security";
@@ -90,14 +100,42 @@ const extraSections: ExtraSection[] = [
 		]
 	},
 	{
-		title: 'AFK, tasks & gifting',
-		description: 'Controls the AFK timer, task rewards and peer-to-peer gifting.',
+		title: 'AFK earning & anti-abuse',
+		description:
+			'Server-authoritative WebSocket AFK. The server measures every interval itself; the browser only sends presence heartbeats. Changes apply live at the next heartbeat.',
 		tab: 'economy',
 		fields: [
-			{ key: 'afk.coinsPerMinute', label: 'AFK credits per minute', type: 'number' },
-			{ key: 'afk.dailyCapMinutes', label: 'Daily AFK cap (minutes)', type: 'number' },
-			{ key: 'afk.maxPingGapSeconds', label: 'Maximum ping gap (seconds)', type: 'number' },
-			{ key: 'afk.minimumPayoutMinutes', label: 'Minimum payout (minutes)', type: 'number' },
+			afkField('afk.enabled', 'Enable AFK earning', 'boolean', 'Also requires credits and earning to be enabled.'),
+			afkField('afk.coinsPerMinute', 'Credits per minute', 'number', 'Awarded in whole minutes. Set 0 to disable payouts.'),
+			afkField('afk.dailyCapMinutes', 'Daily cap (minutes)', 'number', '0 means no daily cap. The cap resets at the configured UTC hour.'),
+			afkField('afk.minimumPayoutMinutes', 'Minimum payout (minutes)', 'number', 'Accumulated seconds are paid in whole blocks of at least this size.'),
+			afkField('afk.heartbeatSeconds', 'Heartbeat interval (seconds)', 'number', 'How often the browser reports presence. Allowed range: 5-120.'),
+			afkField('afk.minHeartbeatGapSeconds', 'Minimum heartbeat gap (seconds)', 'number', 'Faster reports are ignored and never earn time.'),
+			afkField('afk.maxHeartbeatGapSeconds', 'Maximum heartbeat gap (seconds)', 'number', 'Time beyond this gap is never credited, even if the tab was open.'),
+			afkField('afk.idleTimeoutSeconds', 'Idle timeout (seconds)', 'number', 'No input for this long pauses earnings. 0 requires input on every heartbeat.'),
+			afkField('afk.requireVisible', 'Require visible tab', 'boolean', 'Hidden tabs stop the timer on the next heartbeat.'),
+			afkField('afk.requireFocus', 'Require focused window', 'boolean', 'Unfocused windows stop the timer on the next heartbeat.'),
+			afkField('afk.requireInteraction', 'Require user interaction', 'boolean', 'The session only earns while recent mouse, touch, scroll or keyboard input is present.'),
+			afkField('afk.minInteractionsPerBeat', 'Minimum interactions per beat', 'number', 'Used when the idle timeout is 0.'),
+			afkField('afk.challengeEnabled', 'Enable presence checks', 'boolean', 'Random interactive challenges are the main anti-script gate.'),
+			afkField('afk.challengeMinSeconds', 'Minimum time between checks (seconds)', 'number', 'Lower bound for the random challenge schedule.'),
+			afkField('afk.challengeMaxSeconds', 'Maximum time between checks (seconds)', 'number', 'Upper bound for the random challenge schedule.'),
+			afkField('afk.challengeWindowSeconds', 'Presence check window (seconds)', 'number', 'How long the user has to answer before the check fails.'),
+			afkField('afk.challengeMinResponseMs', 'Minimum response time (ms)', 'number', 'Answers faster than this are treated as automated and fail.'),
+			afkField('afk.maxStrikes', 'Strikes before cooldown', 'number', 'Missed or incorrect checks add strikes. At this count the account is paused.'),
+			afkField('afk.cooldownMinutes', 'Strike cooldown (minutes)', 'number', 'How long earning is blocked after the strike limit. 0 disables the cooldown.'),
+			afkField('afk.sessionTicketSeconds', 'Session ticket lifetime (seconds)', 'number', 'Short-lived, single-use WebSocket ticket lifetime.'),
+			afkField('afk.maxSessionsPerIp', 'Maximum sessions per IP', 'number', 'Caps simultaneous AFK sockets from one network.'),
+			afkField('afk.bindSessionToIp', 'Bind ticket to IP', 'boolean', 'Rejects a ticket used from a different network. Disable if users switch mobile networks.'),
+			afkField('afk.bindSessionToUserAgent', 'Bind ticket to browser', 'boolean', 'Rejects a ticket replayed from a different browser signature.'),
+			afkField('afk.dayResetHourUtc', 'Daily reset hour (UTC)', 'number', '0-23. The daily cap rolls over at this hour.')
+		]
+	},
+	{
+		title: 'Tasks, vouchers & gifting',
+		description: 'Task rewards, Linkvertise verification, vouchers and peer-to-peer gifting.',
+		tab: 'economy',
+		fields: [
 			{ key: 'tasks.enabled', label: 'Enable tasks', type: 'boolean' },
 			{ key: 'tasks.defaultReward', label: 'Default task reward', type: 'number' },
 			{ key: 'tasks.cooldownHours', label: 'Default task cooldown (hours)', type: 'number' },
@@ -210,6 +248,26 @@ const extraSections: ExtraSection[] = [
 const booleanKeys: ReadonlySet<string> = new Set(BOOLEAN_SETTINGS);
 const numberKeys: ReadonlySet<string> = new Set(NUMBER_SETTINGS);
 
+const numberBounds: Partial<Record<SettingKey, { min?: number; max?: number }>> = {
+  'afk.coinsPerMinute': { min: 0, max: 100_000 },
+  'afk.dailyCapMinutes': { min: 0, max: 100_000 },
+  'afk.minimumPayoutMinutes': { min: 1, max: 1_440 },
+  'afk.heartbeatSeconds': { min: 5, max: 120 },
+  'afk.minHeartbeatGapSeconds': { min: 2, max: 119 },
+  'afk.maxHeartbeatGapSeconds': { min: 5, max: 600 },
+  'afk.idleTimeoutSeconds': { min: 0, max: 86_400 },
+  'afk.minInteractionsPerBeat': { min: 0, max: 100 },
+  'afk.challengeMinSeconds': { min: 10, max: 86_400 },
+  'afk.challengeMaxSeconds': { min: 10, max: 86_400 },
+  'afk.challengeWindowSeconds': { min: 5, max: 300 },
+  'afk.challengeMinResponseMs': { min: 0, max: 10_000 },
+  'afk.maxStrikes': { min: 1, max: 100 },
+  'afk.cooldownMinutes': { min: 0, max: 10_080 },
+  'afk.sessionTicketSeconds': { min: 10, max: 600 },
+  'afk.maxSessionsPerIp': { min: 1, max: 1_000 },
+  'afk.dayResetHourUtc': { min: 0, max: 23 }
+};
+
 const settingsShape: Record<string, z.ZodType> = {};
 
 for (const key of SETTING_KEYS) {
@@ -221,13 +279,18 @@ for (const key of SETTING_KEYS) {
       z.boolean(),
     );
   } else if (numberKeys.has(key)) {
-    settingsShape[key] = z.preprocess(
-      (v) => Number(v),
-      z
-        .number({ message: `Enter a valid whole number for ${key}.` })
-        .int(`Enter a valid whole number for ${key}.`)
-        .min(positiveKeys.includes(key) ? 1 : 0, `${key} must be at least 1.`),
-    );
+    const bounds = numberBounds[key];
+    const min = bounds?.min ?? (positiveKeys.includes(key) ? 1 : 0);
+    let schema = z
+      .number({ message: `Enter a valid whole number for ${key}.` })
+      .int(`Enter a valid whole number for ${key}.`)
+      .min(min, `${key} must be at least ${min}.`);
+
+    if (bounds?.max !== undefined) {
+      schema = schema.max(bounds.max, `${key} must be at most ${bounds.max}.`);
+    }
+
+    settingsShape[key] = z.preprocess((v) => Number(v), schema);
   } else if (key === "brand.name") {
     settingsShape[key] = z
       .string()
@@ -297,7 +360,14 @@ export const load: PageServerLoad = async () => {
       label: feature.label,
     })),
     booleans: BOOLEAN_SETTINGS,
-    extraSections,
+    extraSections: extraSections.map((section) => ({
+      ...section,
+      fields: section.fields.map((field) => {
+        if (field.type !== "number") return field;
+        const bounds = numberBounds[field.key];
+        return bounds ? { ...field, ...bounds } : field;
+      }),
+    })),
     settingsForm,
   };
 };

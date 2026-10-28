@@ -34,6 +34,10 @@ export type AdapterCapabilities = {
     link: boolean;
     create: boolean;
   };
+  nodes: {
+    list: boolean;
+    update: boolean;
+  };
 };
 
 export const DEFAULT_SERVER_LIMITS = {
@@ -68,6 +72,8 @@ export type Node = {
   allocations: number;
   available: boolean;
   reason?: string;
+  deploymentEnabled?: boolean;
+  maintenanceEnabled?: boolean;
 };
 
 export type UpdateServer = {
@@ -77,6 +83,14 @@ export type UpdateServer = {
   disk?: number;
   cpu?: number;
   databases?: number;
+  allocations?: number;
+};
+
+export type UpdateNode = {
+  deploymentEnabled?: boolean;
+  maintenanceEnabled?: boolean;
+  memory?: number;
+  disk?: number;
   allocations?: number;
 };
 
@@ -550,6 +564,10 @@ export abstract class Adapter {
 
   async updateServer(_id: string, _input: UpdateServer): Promise<Server> {
     this.unsupported("updateServer");
+  }
+
+  async updateNode(_id: string, _input: UpdateNode): Promise<Node> {
+    this.unsupported("updateNode");
   }
 
   async deleteServer(_id: string): Promise<void> {

@@ -28,6 +28,7 @@ import type {
   Subuser,
   UpdateSchedule,
   UpdateServer,
+  UpdateNode,
   UpdateStartup,
   UpdateSubuser,
   User,
@@ -98,6 +99,7 @@ export class MockAdapter extends Adapter {
     activities: true,
     resources: true,
     accounts: { link: false, create: false },
+    nodes: { list: true, update: true },
   };
 
   #servers: Server[] = clone(SAMPLE_SERVERS);
@@ -115,7 +117,7 @@ export class MockAdapter extends Adapter {
     super("http://mock.local", "mock");
   }
 
-  async connect(): Promise<boolean> {
+  override async connect(): Promise<boolean> {
     return true;
   }
 
@@ -251,7 +253,7 @@ export class MockAdapter extends Adapter {
     });
   }
 
-  async getCurrentUser(): Promise<User> {
+  override async getCurrentUser(): Promise<User> {
     return {
       id: "mock-user",
       username: "samir",
@@ -260,11 +262,11 @@ export class MockAdapter extends Adapter {
     };
   }
 
-  async getServers(): Promise<Server[]> {
+  override async getServers(): Promise<Server[]> {
     return clone(this.#servers);
   }
 
-  async getServer(id: string): Promise<Server> {
+  override async getServer(id: string): Promise<Server> {
     return clone(this.#server(id));
   }
 
@@ -352,7 +354,7 @@ export class MockAdapter extends Adapter {
     };
   }*/
 
-  async runPanelAction(
+  override async runPanelAction(
     request: PanelActionRequest,
   ): Promise<PanelActionResult> {
     if (request.pageId === "blueprint-app" && request.actionId === "redirect") {
@@ -409,7 +411,44 @@ export class MockAdapter extends Adapter {
     this.unsupported("runPanelAction");
   }
 
-  async getNodes(): Promise<Node[]> {
+  override async updateNode(id: string, input: UpdateNode): Promise<Node> {
+    const nodes = await this.getNodes();
+    const node = nodes.find((entry) => entry.id === id);
+
+    if (!node) {
+      throw new AdapterError(`Node ${id} was not found`, "NOT_FOUND");
+    }
+
+    const deploymentEnabled = input.deploymentEnabled ?? true;
+    const maintenanceEnabled = input.maintenanceEnabled ?? false;
+
+    const servers = this.#servers.filter((server) => server.node === id);
+    const allocatedMemory = servers.reduce(
+      (sum, server) => sum + server.memory.limit,
+      0,
+    );
+    const allocatedDisk = servers.reduce(
+      (sum, server) => sum + server.disk.limit,
+      0,
+    );
+    const full =
+      allocatedMemory >= node.memory.limit || allocatedDisk >= node.disk.limit;
+
+    return {
+      ...node,
+      available: !maintenanceEnabled && deploymentEnabled !== false && !full,
+      reason:
+        maintenanceEnabled
+          ? "Node is in maintenance"
+          : deploymentEnabled === false
+            ? "Deployment is disabled"
+            : full
+              ? "Node is full"
+              : undefined,
+    };
+  }
+
+  override async getNodes(): Promise<Node[]> {
     return NODES.map((name, index) => {
       const servers = this.#servers.filter((server) => server.node === name);
       const memory = 32768 * (index + 1);
@@ -431,11 +470,13 @@ export class MockAdapter extends Adapter {
         allocations: full ? 0 : 10,
         available: !full,
         reason: full ? "Node is full" : undefined,
+        deploymentEnabled: true,
+        maintenanceEnabled: false,
       };
     });
   }
 
-  async createServer(input: CreateServer): Promise<Server> {
+  override async createServer(input: CreateServer): Promise<Server> {
     const id = crypto.randomUUID();
     const server: Server = {
       id,
@@ -470,7 +511,7 @@ export class MockAdapter extends Adapter {
     return clone(server);
   }
 
-  async updateServer(id: string, input: UpdateServer): Promise<Server> {
+  override async updateServer(id: string, input: UpdateServer): Promise<Server> {
     const server = this.#server(id);
 
     if (input.name !== undefined) server.name = input.name;
@@ -484,7 +525,7 @@ export class MockAdapter extends Adapter {
     return clone(server);
   }
 
-  async deleteServer(id: string): Promise<void> {
+  override async deleteServer(id: string): Promise<void> {
     this.#server(id);
     this.#servers = this.#servers.filter((server) => server.id !== id);
     this.#files.delete(id);
@@ -498,7 +539,7 @@ export class MockAdapter extends Adapter {
     this.#console.delete(id);
   }
 
-  async suspendServer(id: string): Promise<void> {
+  override async suspendServer(id: string): Promise<void> {
     const server = this.#server(id);
     server.state = "suspended";
     server.actions = [];
@@ -512,7 +553,7 @@ export class MockAdapter extends Adapter {
     this.#log(id, "system", "server:suspend", `Suspended ${server.name}`);
   }
 
-  async unsuspendServer(id: string): Promise<void> {
+  override async unsuspendServer(id: string): Promise<void> {
     const server = this.#server(id);
     server.state = "offline";
     server.actions = ["start"];
@@ -547,7 +588,7 @@ export class MockAdapter extends Adapter {
     }
   }
 
-  async startServer(id: string): Promise<void> {
+  override async startServer(id: string): Promise<void> {
     this.#applyPower(id, "running");
     this.#consoleFor(id).push({
       time: timeNow(),
@@ -562,7 +603,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async stopServer(id: string): Promise<void> {
+  override async stopServer(id: string): Promise<void> {
     this.#applyPower(id, "offline");
     this.#consoleFor(id).push({
       time: timeNow(),
@@ -577,7 +618,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async restartServer(id: string): Promise<void> {
+  override async restartServer(id: string): Promise<void> {
     this.#applyPower(id, "running");
     this.#consoleFor(id).push({
       time: timeNow(),
@@ -592,7 +633,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async killServer(id: string): Promise<void> {
+  override async killServer(id: string): Promise<void> {
     this.#applyPower(id, "offline");
     this.#consoleFor(id).push({
       time: timeNow(),
@@ -607,7 +648,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async reinstallServer(id: string): Promise<void> {
+  override async reinstallServer(id: string): Promise<void> {
     const server = this.#server(id);
     server.state = "offline";
     server.actions = ["start"];
@@ -621,7 +662,7 @@ export class MockAdapter extends Adapter {
     this.#log(id, "samir", "server:reinstall", `Reinstalled ${server.name}`);
   }
 
-  async sendCommand(id: string, command: string): Promise<void> {
+  override async sendCommand(id: string, command: string): Promise<void> {
     const lines = this.#consoleFor(id);
     lines.push({ time: timeNow(), level: "OUT", text: `> ${command}` });
     lines.push({
@@ -632,11 +673,11 @@ export class MockAdapter extends Adapter {
     this.#log(id, "samir", "console.command", `Ran "${command}"`);
   }
 
-  async getConsole(id: string): Promise<ConsoleLine[]> {
+  override async getConsole(id: string): Promise<ConsoleLine[]> {
     return clone(this.#consoleFor(id));
   }
 
-  async getResources(id: string): Promise<ResourceUsage> {
+  override async getResources(id: string): Promise<ResourceUsage> {
     const server = this.#server(id);
     return {
       cpu: server.cpu.used,
@@ -646,11 +687,11 @@ export class MockAdapter extends Adapter {
     };
   }
 
-  async listAllocations(id: string): Promise<Allocation[]> {
+  override async listAllocations(id: string): Promise<Allocation[]> {
     return clone(this.#allocationsFor(id));
   }
 
-  async createAllocation(id: string): Promise<Allocation> {
+  override async createAllocation(id: string): Promise<Allocation> {
     const allocations = this.#allocationsFor(id);
     const port = Math.max(0, ...allocations.map((entry) => entry.port)) + 1;
     const allocation: Allocation = {
@@ -666,7 +707,7 @@ export class MockAdapter extends Adapter {
     return clone(allocation);
   }
 
-  async deleteAllocation(id: string, allocationId: string): Promise<void> {
+  override async deleteAllocation(id: string, allocationId: string): Promise<void> {
     const allocations = this.#allocationsFor(id);
     const target = allocations.find((entry) => entry.id === allocationId);
     if (!target)
@@ -683,7 +724,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async setPrimaryAllocation(
+  override async setPrimaryAllocation(
     id: string,
     allocationId: string,
   ): Promise<Allocation[]> {
@@ -700,11 +741,11 @@ export class MockAdapter extends Adapter {
     return clone(allocations);
   }
 
-  async listBackups(id: string): Promise<Backup[]> {
+  override async listBackups(id: string): Promise<Backup[]> {
     return clone(this.#backupsFor(id));
   }
 
-  async createBackup(id: string, input?: CreateBackup): Promise<Backup> {
+  override async createBackup(id: string, input?: CreateBackup): Promise<Backup> {
     const backups = this.#backupsFor(id);
     const server = this.#server(id);
     const backup: Backup = {
@@ -728,20 +769,20 @@ export class MockAdapter extends Adapter {
     return clone(backup);
   }
 
-  async deleteBackup(id: string, backupId: string): Promise<void> {
+  override async deleteBackup(id: string, backupId: string): Promise<void> {
     this.#backups.set(
       id,
       this.#backupsFor(id).filter((backup) => backup.id !== backupId),
     );
   }
 
-  async restoreBackup(id: string, backupId: string): Promise<void> {
+  override async restoreBackup(id: string, backupId: string): Promise<void> {
     const backup = this.#backupsFor(id).find((entry) => entry.id === backupId);
     if (!backup) throw new AdapterError("Backup was not found", "NOT_FOUND");
     this.#log(id, "samir", "backup.restore", `Restored ${backup.name}`);
   }
 
-  async getBackupDownloadUrl(
+  override async getBackupDownloadUrl(
     id: string,
     backupId: string,
   ): Promise<string | null> {
@@ -751,11 +792,11 @@ export class MockAdapter extends Adapter {
     return null;
   }
 
-  async listDatabases(id: string): Promise<Database[]> {
+  override async listDatabases(id: string): Promise<Database[]> {
     return clone(this.#databasesFor(id));
   }
 
-  async createDatabase(id: string, input: CreateDatabase): Promise<Database> {
+  override async createDatabase(id: string, input: CreateDatabase): Promise<Database> {
     const databases = this.#databasesFor(id);
     const name = input.name
       .trim()
@@ -777,18 +818,18 @@ export class MockAdapter extends Adapter {
     return clone(database);
   }
 
-  async deleteDatabase(id: string, databaseId: string): Promise<void> {
+  override async deleteDatabase(id: string, databaseId: string): Promise<void> {
     this.#databases.set(
       id,
       this.#databasesFor(id).filter((database) => database.id !== databaseId),
     );
   }
 
-  async listSchedules(id: string): Promise<Schedule[]> {
+  override async listSchedules(id: string): Promise<Schedule[]> {
     return clone(this.#schedulesFor(id));
   }
 
-  async createSchedule(id: string, input: CreateSchedule): Promise<Schedule> {
+  override async createSchedule(id: string, input: CreateSchedule): Promise<Schedule> {
     const schedule: Schedule = {
       id: crypto.randomUUID(),
       name: input.name,
@@ -803,7 +844,7 @@ export class MockAdapter extends Adapter {
     return clone(schedule);
   }
 
-  async updateSchedule(
+  override async updateSchedule(
     id: string,
     scheduleId: string,
     input: UpdateSchedule,
@@ -823,18 +864,18 @@ export class MockAdapter extends Adapter {
     return clone(schedule);
   }
 
-  async deleteSchedule(id: string, scheduleId: string): Promise<void> {
+  override async deleteSchedule(id: string, scheduleId: string): Promise<void> {
     this.#schedules.set(
       id,
       this.#schedulesFor(id).filter((schedule) => schedule.id !== scheduleId),
     );
   }
 
-  async getStartup(id: string): Promise<Startup> {
+  override async getStartup(id: string): Promise<Startup> {
     return clone(this.#startupFor(id));
   }
 
-  async updateStartup(id: string, input: UpdateStartup): Promise<Startup> {
+  override async updateStartup(id: string, input: UpdateStartup): Promise<Startup> {
     const startup = this.#startupFor(id);
 
     for (const variable of input.variables) {
@@ -851,11 +892,11 @@ export class MockAdapter extends Adapter {
     return clone(startup);
   }
 
-  async listSubusers(id: string): Promise<Subuser[]> {
+  override async listSubusers(id: string): Promise<Subuser[]> {
     return clone(this.#subusersFor(id));
   }
 
-  async createSubuser(id: string, input: CreateSubuser): Promise<Subuser> {
+  override async createSubuser(id: string, input: CreateSubuser): Promise<Subuser> {
     const email = input.email.trim().toLowerCase();
     if (!email)
       throw new AdapterError("An email address is required", "VALIDATION");
@@ -874,7 +915,7 @@ export class MockAdapter extends Adapter {
     return clone(subuser);
   }
 
-  async updateSubuser(
+  override async updateSubuser(
     id: string,
     subuserId: string,
     input: UpdateSubuser,
@@ -887,18 +928,18 @@ export class MockAdapter extends Adapter {
     return clone(subuser);
   }
 
-  async deleteSubuser(id: string, subuserId: string): Promise<void> {
+  override async deleteSubuser(id: string, subuserId: string): Promise<void> {
     this.#subusers.set(
       id,
       this.#subusersFor(id).filter((subuser) => subuser.id !== subuserId),
     );
   }
 
-  async listActivities(id: string): Promise<Activity[]> {
+  override async listActivities(id: string): Promise<Activity[]> {
     return clone(this.#activitiesFor(id));
   }
 
-  async getFileSystem(id: string): Promise<FileSystem> {
+  override async getFileSystem(id: string): Promise<FileSystem> {
     const system = this.#filesFor(id);
     return {
       tree: Object.fromEntries(
@@ -910,7 +951,7 @@ export class MockAdapter extends Adapter {
     };
   }
 
-  async listFiles(id: string, directory: string): Promise<FileEntry[]> {
+  override async listFiles(id: string, directory: string): Promise<FileEntry[]> {
     return clone((this.#filesFor(id).tree[directory] ?? []).map(fileActions));
   }
 
@@ -921,11 +962,11 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async readFile(id: string, path: string): Promise<string> {
+  override async readFile(id: string, path: string): Promise<string> {
     return this.#locate(id, path)?.content ?? "";
   }
 
-  async writeFile(id: string, path: string, content: string): Promise<void> {
+  override async writeFile(id: string, path: string, content: string): Promise<void> {
     const system = this.#filesFor(id);
     const { directory, name } = splitPath(path);
     const list = system.tree[directory] ?? (system.tree[directory] = []);
@@ -949,7 +990,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async createFile(
+  override async createFile(
     id: string,
     directory: string,
     name: string,
@@ -967,7 +1008,7 @@ export class MockAdapter extends Adapter {
     return clone(entry);
   }
 
-  async createDirectory(
+  override async createDirectory(
     id: string,
     directory: string,
     name: string,
@@ -993,7 +1034,7 @@ export class MockAdapter extends Adapter {
     }
   }
 
-  async deleteFiles(id: string, paths: string[]): Promise<void> {
+  override async deleteFiles(id: string, paths: string[]): Promise<void> {
     const system = this.#filesFor(id);
     for (const path of paths) {
       const { directory, name } = splitPath(path);
@@ -1004,7 +1045,7 @@ export class MockAdapter extends Adapter {
     }
   }
 
-  async renameFile(id: string, from: string, to: string): Promise<void> {
+  override async renameFile(id: string, from: string, to: string): Promise<void> {
     const system = this.#filesFor(id);
     const source = splitPath(from);
     const target = splitPath(to);
@@ -1028,7 +1069,7 @@ export class MockAdapter extends Adapter {
     }
   }
 
-  async copyFile(id: string, from: string, to: string): Promise<void> {
+  override async copyFile(id: string, from: string, to: string): Promise<void> {
     const system = this.#filesFor(id);
     const source = splitPath(from);
     const target = splitPath(to);
@@ -1053,7 +1094,7 @@ export class MockAdapter extends Adapter {
     }
   }
 
-  async compressFiles(
+  override async compressFiles(
     id: string,
     paths: string[],
     name: string,
@@ -1071,7 +1112,7 @@ export class MockAdapter extends Adapter {
     return clone(entry);
   }
 
-  async decompressFile(id: string, path: string): Promise<void> {
+  override async decompressFile(id: string, path: string): Promise<void> {
     const system = this.#filesFor(id);
     const { directory, name } = splitPath(path);
     const base = name.replace(ARCHIVE, "");
@@ -1106,7 +1147,7 @@ export class MockAdapter extends Adapter {
     );
   }
 
-  async uploadFiles(
+  override async uploadFiles(
     id: string,
     directory: string,
     files: Array<{ name: string; size: number; content?: string }>,
@@ -1126,7 +1167,7 @@ export class MockAdapter extends Adapter {
     return clone(created);
   }
 
-  async downloadToServer(
+  override async downloadToServer(
     id: string,
     directory: string,
     filename: string,
@@ -1146,7 +1187,7 @@ export class MockAdapter extends Adapter {
     return clone(entry);
   }
 
-  async listSoftwares(): Promise<Software[]> {
+  override async listSoftwares(): Promise<Software[]> {
     return [
       {
         id: 0,
@@ -1168,11 +1209,11 @@ export class MockAdapter extends Adapter {
     ];
   }
 
-  async listSoftwareGroups(): Promise<SoftwareGroup[]> {
+  override async listSoftwareGroups(): Promise<SoftwareGroup[]> {
     return [{ id: 0, name: "Minecraft", description: "Java Edition servers" }];
   }
 
-  async getSoftwareVariables(): Promise<SoftwareVariable[]> {
+  override async getSoftwareVariables(): Promise<SoftwareVariable[]> {
     return [
       {
         key: "SERVER_JARFILE",

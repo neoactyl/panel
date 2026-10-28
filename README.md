@@ -55,6 +55,66 @@ You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
 
+## AFK earning over WebSockets
+
+AFK credits are awarded by a WebSocket gateway that runs **inside the same
+SvelteKit/Vite HTTP server**. 
+
+1. `POST /api/afk/session` checks the signed-in user and returns a short-lived,
+   HMAC-signed, single-use ticket plus the socket URL.
+2. The browser opens `/api/afk/ws?ticket=…`. The gateway validates the ticket,
+   origin, optional IP/user-agent binding and per-IP session cap.
+3. The browser sends presence heartbeats. The gateway measures every interval
+   itself, rejects gaps outside the configured bounds, and posts the eligible
+   seconds to `POST /api/afk/internal/ingest` with an HMAC signature.
+4. Only that internal endpoint writes credits. A browser can never submit an
+   amount of time or credits directly.
+5. Random interactive presence checks must be answered inside the configured
+   window. Missed or impossibly fast answers add strikes and eventually put the
+   account on cooldown. The daily cap limits the damage from any automated
+   client.
+
+All rules live in **Admin → Settings → Economy → AFK earning & anti-abuse** and
+apply on the next heartbeat without a restart. Important values:
+
+| Setting | Purpose |
+| --- | --- |
+| `heartbeatSeconds` | Presence report cadence (5–120s). |
+| `minHeartbeatGapSeconds` / `maxHeartbeatGapSeconds` | Server-measured window that may be credited. |
+| `idleTimeoutSeconds` / `minInteractionsPerBeat` | Real input requirement. |
+| `challenge*` | Random presence checks, response window and minimum human response time. |
+| `maxStrikes` / `cooldownMinutes` | Strike limit and earning lockout. |
+| `sessionTicketSeconds` | Ticket lifetime; tickets are single-use. |
+| `maxSessionsPerIp` / `bindSessionToIp` / `bindSessionToUserAgent` | Session isolation. |
+
+### Production
+
+The Vite plugin covers `vite dev` and `vite preview`. For a Node deployment,
+use `@sveltejs/adapter-node` and attach the same gateway to the adapter's HTTP
+server before calling `handler`. The gateway module has no SvelteKit runtime
+imports, so a Bun entry can import its TypeScript source directly:
+
+```js
+import { createServer } from 'node:http';
+import { handler } from './build/handler.js';
+import { attachAfkGateway } from './src/lib/server/afk/gateway.ts';
+
+const server = createServer(handler);
+
+attachAfkGateway(server, {
+  secret: process.env.BETTER_AUTH_SECRET,
+  internalUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/afk/internal/ingest`,
+  allowedOrigins: [process.env.ORIGIN]
+});
+
+server.listen(process.env.PORT ?? 3000);
+```
+
+Serverless platforms (for example Vercel functions) do not keep WebSocket
+connections open; the AFK socket needs a long-lived Node process. If the panel
+runs behind a reverse proxy, set SvelteKit's `ADDRESS_HEADER` and `XFF_DEPTH`
+so the per-IP limits and optional IP binding see the real client address.
+
 ## Discord invite bot
 
 The invite bot starts with the web process by default (Discord shard 0). It can

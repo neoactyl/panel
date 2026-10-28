@@ -3,7 +3,6 @@ import { randomBytes } from 'node:crypto';
 import { addCredits, getCreditBalance, spendCredits } from '#lib/server/billing/credits.ts';
 import { db } from '#lib/server/db/index.ts';
 import {
-	afkSession,
 	earnTask,
 	earnTaskCompletion,
 	voucher,
@@ -43,127 +42,6 @@ export class EarnError extends Error {
 		this.code = code;
 	}
 }
-
-const dayKey = () => new Date().toISOString().slice(0, 10);
-
-const capMinutes = () => Math.max(0, getNumber('afk.dailyCapMinutes'));
-
-export type AfkState = {
-	enabled: boolean;
-	coinsPerMinute: number;
-	dailyCapMinutes: number;
-	earnedToday: number;
-	remainingMinutes: number;
-	pendingSeconds: number;
-	totalEarned: number;
-	balance: number;
-};
-
-const loadAfkRow = async (userId: string) =>
-	db.select().from(afkSession).where(eq(afkSession.userId, userId)).get();
-
-export const getAfkState = async (userId: string): Promise<AfkState> => {
-	const row = await loadAfkRow(userId);
-	const today = dayKey();
-	const earnedToday = row && row.day === today ? row.earnedToday : 0;
-	const dailyCapMinutes = capMinutes();
-
-	return {
-		enabled: getBool('credits.enabled') && getBool('credits.allowEarn'),
-		coinsPerMinute: getNumber('afk.coinsPerMinute'),
-		dailyCapMinutes,
-		earnedToday,
-		remainingMinutes: dailyCapMinutes <= 0 ? 0 : Math.max(0, dailyCapMinutes - earnedToday),
-		pendingSeconds: row?.pendingSeconds ?? 0,
-		totalEarned: row?.totalEarned ?? 0,
-		balance: await getCreditBalance(userId)
-	};
-};
-
-export type AfkPingResult = AfkState & { awarded: number };
-
-export const pingAfk = async (userId: string): Promise<AfkPingResult> => {
-	if (!getBool('credits.enabled') || !getBool('credits.allowEarn')) {
-		throw new EarnError('Earning is currently disabled.', 'DISABLED');
-	}
-
-	const now = Date.now();
-	const today = dayKey();
-	const row = await loadAfkRow(userId);
-	const maxGap = Math.max(5, getNumber('afk.maxPingGapSeconds'));
-	const perMinute = Math.max(0, getNumber('afk.coinsPerMinute'));
-	const minimumPayout = Math.max(1, getNumber('afk.minimumPayoutMinutes'));
-	const dailyCap = capMinutes();
-
-	let earnedToday = row && row.day === today ? row.earnedToday : 0;
-	let pending = row?.pendingSeconds ?? 0;
-
-	if (row?.lastPingAt) {
-		const elapsed = (now - row.lastPingAt.getTime()) / 1000;
-		pending += Math.max(0, Math.min(maxGap, elapsed));
-	}
-
-	const availableMinutes = Math.floor(pending / 60);
-	const remaining = dailyCap <= 0 ? availableMinutes : Math.max(0, dailyCap - earnedToday);
-	const payoutMinutes = Math.max(0, Math.min(availableMinutes, remaining));
-
-	let awarded = 0;
-
-	if (payoutMinutes >= minimumPayout && perMinute > 0) {
-		awarded = payoutMinutes * perMinute;
-		await addCredits({
-			userId,
-			amount: awarded,
-			kind: 'afk',
-			reference: `afk:${userId}:${today}:${earnedToday + payoutMinutes}`,
-			description: `AFK earnings for ${payoutMinutes} minute(s).`,
-			metadata: { minutes: payoutMinutes, day: today }
-		});
-
-		earnedToday += payoutMinutes;
-		pending -= payoutMinutes * 60;
-
-		if (dailyCap > 0 && earnedToday >= dailyCap) pending = 0;
-	}
-
-	const totalEarned = (row?.totalEarned ?? 0) + awarded;
-
-	await db
-		.insert(afkSession)
-		.values({
-			userId,
-			lastPingAt: new Date(now),
-			pendingSeconds: Math.floor(pending),
-			earnedToday,
-			day: today,
-			totalEarned,
-			updatedAt: new Date(now)
-		})
-		.onConflictDoUpdate({
-			target: afkSession.userId,
-			set: {
-				lastPingAt: new Date(now),
-				pendingSeconds: Math.floor(pending),
-				earnedToday,
-				day: today,
-				totalEarned,
-				updatedAt: new Date(now)
-			}
-		})
-		.run();
-
-	return {
-		enabled: true,
-		coinsPerMinute: perMinute,
-		dailyCapMinutes: dailyCap,
-		earnedToday,
-		remainingMinutes: dailyCap <= 0 ? 0 : Math.max(0, dailyCap - earnedToday),
-		pendingSeconds: Math.floor(pending),
-		totalEarned,
-		balance: await getCreditBalance(userId),
-		awarded
-	};
-};
 
 export type EarnTaskView = {
 	id: string;

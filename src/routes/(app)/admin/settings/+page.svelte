@@ -368,8 +368,13 @@
 			<div class="mt-5 grid gap-4 sm:grid-cols-2">
 				{#each extra.fields as field (field.key)}
 					{#if field.type === 'boolean'}
-						<label class={toggleRow}>
-							<span class="text-sm text-white/70">{field.label}</span>
+						<label class="flex items-start justify-between gap-4 border border-white/10 bg-[#121212] px-3 py-2.5">
+							<span>
+								<span class="block text-sm text-white/70">{field.label}</span>
+								{#if field.help}
+									<span class="mt-0.5 block text-[11px] leading-snug text-white/35">{field.help}</span>
+								{/if}
+							</span>
 							<Checkbox name={field.key} checked={checked(field.key)} />
 						</label>
 					{:else}
@@ -396,10 +401,15 @@
 									id={field.key}
 									name={field.key}
 									type={field.type === 'number' ? 'number' : 'text'}
-									min={field.type === 'number' ? '0' : undefined}
+									min={field.type === 'number' ? (field.min ?? 0) : undefined}
+									max={field.type === 'number' ? field.max : undefined}
 									class={input}
 									value={data.current[field.key]}
+									placeholder={field.placeholder}
 								/>
+							{/if}
+							{#if field.help}
+								<p class="mt-1.5 text-[11px] leading-snug text-white/35">{field.help}</p>
 							{/if}
 						</div>
 					{/if}
