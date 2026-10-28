@@ -9,7 +9,7 @@ import {
   loadSettings,
   updateSettings,
 } from "#lib/server/config/settings.ts";
-import { setupCreateSchema, setupSettingsSchema } from "#lib/schemas.ts";
+import { setupCreateSchema } from "#lib/schemas.ts";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { superValidate, message } from "sveltekit-superforms/server";
 import { asc, count, eq } from "drizzle-orm";
@@ -29,96 +29,47 @@ const firstUser = () =>
     .limit(1)
     .get();
 
-const applySettings = async (
-  form: z.infer<typeof setupSettingsSchema>,
-): Promise<string | undefined> => {
-  const existingToken = Boolean(getPanelConfig().token);
-  const token = form.panelToken?.trim() ?? "";
-
-  if (form.adapter === "calagopus") {
-    if (!/^https?:\/\/.+/i.test(form.panelUrl ?? "")) {
-      return "A valid Calagopus panel URL is required.";
-    }
-
-    if (!token && !existingToken) {
-      return "A panel API token is required.";
-    }
-  }
-
-  const next = {
-    "brand.name": form.appName || "Neoactyl",
-    "brand.logo": form.logo ?? "",
-    "brand.description": form.description || "Game server management",
-    "panel.adapter": form.adapter,
-    "panel.url": form.panelUrl ?? "",
-    "panel.token": !token ? getPanelConfig().token : token,
-  };
-
-  await updateSettings(next);
-  await loadSettings(true);
-  resetAdapter();
-
-  return undefined;
-};
-
-export const load: PageServerLoad = async ({ locals, parent }) => {
+export const load: PageServerLoad = async ({ locals }) => {
   if (await hasAdmin()) {
     redirect(302, "/admin");
   }
 
-  const { branding } = await parent();
-  const [hasUsers, oldest] = await Promise.all([userCount(), firstUser()]);
-  const canClaim = Boolean(
-    locals.user && oldest && locals.user.id === oldest.id,
-  );
+  if ((await userCount()) > 0) {
+    redirect(302, "/auth/login");
+  }
+
   const panel = getPanelConfig();
 
-  const defaults = {
-    appName: branding.name,
-    description: branding.description ?? "",
-    logo: branding.logo ?? "",
-    adapter: panel.adapter === "calagopus" ? "calagopus" : "mock",
-    panelUrl: panel.url ?? "",
-  } as const;
-
   return {
-    existingUser: locals.user
-      ? { id: locals.user.id, name: locals.user.name, email: locals.user.email }
-      : null,
-    hasUsers,
-    canClaim,
+    form: await superValidate(
+      {
+        appName: "Neoactyl",
+        description: "",
+        logo: "",
+        adapter: panel.adapter === "calagopus" ? "calagopus" : "mock",
+        panelUrl: panel.url ?? "",
+        panelToken: panel.token ?? "",
+      },
+      zod4(setupCreateSchema),
+      { id: "setup" },
+    ),
+    branding: {
+      name: "Neoactyl",
+      logo: "",
+    },
     panel: {
       adapter: panel.adapter,
       url: panel.url,
       tokenSet: Boolean(panel.token),
     },
-    createForm: await superValidate(defaults, zod4(setupCreateSchema), {
-      id: "create",
-      errors: false,
-    }),
-    claimForm: await superValidate(defaults, zod4(setupSettingsSchema), {
-      id: "claim",
-      errors: false,
-    }),
   };
 };
+
 export const actions: Actions = {
-  create: async (event) => {
+  setup: async (event) => {
     const form = await superValidate(event.request, zod4(setupCreateSchema), {
-      id: "create",
+      id: "setup",
     });
-
-    if (await hasAdmin()) {
-      return message(form, "An administrator already exists.", { status: 400 });
-    }
-
-    if ((await userCount()) > 0) {
-      return message(
-        form,
-        "Accounts already exist. Sign in with the first account to claim administrator.",
-        { status: 409 },
-      );
-    }
 
     if (!form.valid) {
       return message(form, "Please review the highlighted fields.", {
@@ -135,18 +86,36 @@ export const actions: Actions = {
       .limit(1);
 
     if (existing.length > 0) {
-      return message(
-        form,
-        "That email already exists. Sign in first, then claim the administrator role.",
-        { status: 400 },
-      );
+      return message(form, "That email already exists. Sign in first.", {
+        status: 400,
+      });
     }
 
-    const problem = await applySettings(form.data);
+    const token = form.data.panelToken?.trim() ?? "";
 
-    if (problem) {
-      return message(form, problem, { status: 400 });
+    if (form.data.adapter === "calagopus") {
+      if (!/^https?:\/\/.+/i.test(form.data.panelUrl ?? "")) {
+        return message(form, "A valid Calagopus panel URL is required.", {
+          status: 400,
+        });
+      }
+      if (!token) {
+        return message(form, "A panel API token is required for Calagopus.", {
+          status: 400,
+        });
+      }
     }
+
+    await updateSettings({
+      "brand.name": form.data.appName || "Neoactyl",
+      "brand.logo": form.data.logo ?? "",
+      "brand.description": form.data.description || "Game server management",
+      "panel.adapter": form.data.adapter,
+      "panel.url": form.data.panelUrl ?? "",
+      "panel.token": !token ? getPanelConfig().token : token,
+    });
+    await loadSettings(true);
+    resetAdapter();
 
     let created: Awaited<ReturnType<AuthApi["signUpEmail"]>>;
 
@@ -165,54 +134,12 @@ export const actions: Actions = {
     if (!oldest || oldest.id !== created.user.id) {
       return message(
         form,
-        "Another account was created first. Sign in with the first account to claim administrator.",
+        "Another account was created first. Sign in with the first account.",
         { status: 409 },
       );
     }
 
     await setUserRole(created.user.id, "admin");
-    redirect(303, "/admin");
-  },
-
-  claim: async (event) => {
-    const { locals } = event;
-    const form = await superValidate(event.request, zod4(setupSettingsSchema), {
-      id: "claim",
-    });
-
-    if (await hasAdmin()) {
-      return message(form, "An administrator already exists.", { status: 400 });
-    }
-
-    if (!locals.user) {
-      return message(form, "Sign in to claim the administrator role.", {
-        status: 401,
-      });
-    }
-
-    const oldest = await firstUser();
-
-    if (!oldest || oldest.id !== locals.user.id) {
-      return message(
-        form,
-        "Only the first account created on this instance can claim the administrator role.",
-        { status: 403 },
-      );
-    }
-
-    if (!form.valid) {
-      return message(form, "Please review the highlighted fields.", {
-        status: 400,
-      });
-    }
-
-    const problem = await applySettings(form.data);
-
-    if (problem) {
-      return message(form, problem, { status: 400 });
-    }
-
-    await setUserRole(locals.user.id, "admin");
     redirect(303, "/admin");
   },
 };
