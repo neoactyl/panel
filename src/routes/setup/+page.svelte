@@ -1,30 +1,35 @@
 <script lang="ts">
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { fly } from 'svelte/transition';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconPhoto from '@tabler/icons-svelte/icons/photo';
 	import IconWorld from '@tabler/icons-svelte/icons/world';
 	import logo from '#lib/assets/logo.svg';
+	import { setupCreateSchema, setupSettingsSchema } from '#lib/schemas.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const create = superForm(data.createForm, {
-		id: 'create'
+		id: 'create',
+		validators: zod4Client(setupCreateSchema)
 	});
 	const claim = superForm(data.claimForm, {
-		id: 'claim'
+		id: 'claim',
+		validators: zod4Client(setupSettingsSchema)
 	});
 
 	const adminName = fieldProxy(create, 'name');
 	const adminEmail = fieldProxy(create, 'email');
-	const { enhance: enhanceCreate, message: createMessage, submitting: createSubmitting } = create;
-	const { enhance: enhanceClaim, message: claimMessage, submitting: claimSubmitting } = claim;
+	const { enhance: enhanceCreate, errors: createErrors, message: createMessage, submitting: createSubmitting } = create;
+	const { enhance: enhanceClaim, errors: claimErrors, message: claimMessage, submitting: claimSubmitting } = claim;
 
 	const input =
 		'w-full border border-white/10 bg-[#121212] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none';
 	const label = 'mb-1.5 block text-[11px] font-semibold tracking-wider text-white/50 uppercase';
+	const errorText = 'mt-1 text-xs text-red-300';
 </script>
 
 <svelte:head>
@@ -77,6 +82,9 @@
 									value={data.branding.name}
 									required
 								/>
+								{#if $claimErrors.appName}
+									<p class={errorText}>{$claimErrors.appName.join(' ')}</p>
+								{/if}
 							</div>
 							<div>
 								<label class={label} for="claim-description">Description</label>
@@ -86,6 +94,9 @@
 									class={input}
 									value={data.branding.description}
 								/>
+								{#if $claimErrors.description}
+									<p class={errorText}>{$claimErrors.description.join(' ')}</p>
+								{/if}
 							</div>
 						</div>
 						<div>
@@ -102,9 +113,7 @@
 							<div>
 								<label class={label} for="claim-adapter">Panel adapter</label>
 								<select id="claim-adapter" name="adapter" class={input}>
-									<option value="mock" selected={data.panel.adapter !== 'calagopus'}>
-										Mock
-									</option>
+									<option value="mock" selected={data.panel.adapter !== 'calagopus'}>Mock</option>
 									<option value="calagopus" selected={data.panel.adapter === 'calagopus'}>
 										Calagopus
 									</option>
@@ -168,143 +177,161 @@
 				</div>
 			{/if}
 			<form method="POST" action="?/create" use:enhanceCreate class="mt-5 space-y-5">
+			<div class="grid gap-4 sm:grid-cols-2">
+				<div>
+					<label class={label} for="name">Admin name</label>
+					<input
+						id="name"
+						name="name"
+						class={input}
+						autocomplete="name"
+						required
+						bind:value={$adminName}
+					/>
+					{#if $createErrors.name}
+						<p class={errorText}>{$createErrors.name.join(' ')}</p>
+					{/if}
+				</div>
+				<div>
+					<label class={label} for="email">Admin email</label>
+					<input
+						id="email"
+						name="email"
+						type="email"
+						class={input}
+						autocomplete="email"
+						required
+						bind:value={$adminEmail}
+					/>
+					{#if $createErrors.email}
+						<p class={errorText}>{$createErrors.email.join(' ')}</p>
+					{/if}
+				</div>
+				<div>
+					<label class={label} for="password">Password</label>
+					<input
+						id="password"
+						name="password"
+						type="password"
+						class={input}
+						autocomplete="new-password"
+						minlength={8}
+						required
+					/>
+					{#if $createErrors.password}
+						<p class={errorText}>{$createErrors.password.join(' ')}</p>
+					{/if}
+				</div>
+				<div>
+					<label class={label} for="confirmPassword">Confirm password</label>
+					<input
+						id="confirmPassword"
+						name="confirmPassword"
+						type="password"
+						class={input}
+						autocomplete="new-password"
+						required
+					/>
+					{#if $createErrors.confirmPassword}
+						<p class={errorText}>{$createErrors.confirmPassword.join(' ')}</p>
+					{/if}
+				</div>
+			</div>
+
+			<div class="border-t border-white/10 pt-5">
+				<p class="mb-4 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-white/40 uppercase">
+					<IconWorld class="h-3.5 w-3.5" /> Branding
+				</p>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div>
-						<label class={label} for="name">Admin name</label>
+						<label class={label} for="appName">App name</label>
 						<input
-							id="name"
-							name="name"
+							id="appName"
+							name="appName"
 							class={input}
-							autocomplete="name"
-							required
-							bind:value={$adminName}
-						/>
-					</div>
-					<div>
-						<label class={label} for="email">Admin email</label>
-						<input
-							id="email"
-							name="email"
-							type="email"
-							class={input}
-							autocomplete="email"
-							required
-							bind:value={$adminEmail}
-						/>
-					</div>
-					<div>
-						<label class={label} for="password">Password</label>
-						<input
-							id="password"
-							name="password"
-							type="password"
-							class={input}
-							autocomplete="new-password"
-							minlength={8}
+							value={data.branding.name}
 							required
 						/>
+						{#if $createErrors.appName}
+							<p class={errorText}>{$createErrors.appName.join(' ')}</p>
+						{/if}
 					</div>
 					<div>
-						<label class={label} for="confirmPassword">Confirm password</label>
+						<label class={label} for="description">Description</label>
 						<input
-							id="confirmPassword"
-							name="confirmPassword"
-							type="password"
+							id="description"
+							name="description"
 							class={input}
-							autocomplete="new-password"
-							required
+							value={data.branding.description}
+						/>
+						{#if $createErrors.description}
+							<p class={errorText}>{$createErrors.description.join(' ')}</p>
+						{/if}
+					</div>
+				</div>
+				<div class="mt-4">
+					<label class={label} for="logo">Logo URL</label>
+					<div class="relative">
+						<IconPhoto class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
+						<input
+							id="logo"
+							name="logo"
+							class="{input} pl-9"
+							value={data.createForm.data.logo}
+							placeholder="https://example.com/logo.png"
 						/>
 					</div>
 				</div>
+			</div>
 
-				<div class="border-t border-white/10 pt-5">
-					<p class="mb-4 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-white/40 uppercase">
-						<IconWorld class="h-3.5 w-3.5" /> Branding
-					</p>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div>
-							<label class={label} for="appName">App name</label>
-							<input
-								id="appName"
-								name="appName"
-								class={input}
-								value={data.branding.name}
-								required
-							/>
-						</div>
-						<div>
-							<label class={label} for="description">Description</label>
-							<input
-								id="description"
-								name="description"
-								class={input}
-								value={data.branding.description}
-							/>
-						</div>
+			<div class="border-t border-white/10 pt-5">
+				<p class="mb-4 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-white/40 uppercase">
+					<IconServer class="h-3.5 w-3.5" /> Panel connection
+				</p>
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div>
+						<label class={label} for="adapter">Adapter</label>
+						<select id="adapter" name="adapter" class={input}>
+							<option value="mock" selected={data.panel.adapter !== 'calagopus'}>
+								Mock
+							</option>
+							<option value="calagopus" selected={data.panel.adapter === 'calagopus'}>
+								Calagopus
+							</option>
+						</select>
 					</div>
-					<div class="mt-4">
-						<label class={label} for="logo">Logo URL</label>
-						<div class="relative">
-							<IconPhoto class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
-							<input
-								id="logo"
-								name="logo"
-								class="{input} pl-9"
-								value={data.createForm.data.logo}
-								placeholder="https://example.com/logo.png"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="border-t border-white/10 pt-5">
-					<p class="mb-4 flex items-center gap-2 text-[10px] font-semibold tracking-widest text-white/40 uppercase">
-						<IconServer class="h-3.5 w-3.5" /> Panel connection
-					</p>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div>
-							<label class={label} for="adapter">Adapter</label>
-							<select id="adapter" name="adapter" class={input}>
-								<option value="mock" selected={data.panel.adapter !== 'calagopus'}>
-									Mock
-								</option>
-								<option value="calagopus" selected={data.panel.adapter === 'calagopus'}>
-									Calagopus
-								</option>
-							</select>
-						</div>
-						<div>
-							<label class={label} for="panelUrl">Panel URL</label>
-							<input
-								id="panelUrl"
-								name="panelUrl"
-								class={input}
-								value={data.panel.url}
-								placeholder="https://panel.example.com"
-							/>
-						</div>
-					</div>
-					<div class="mt-4">
-						<label class={label} for="panelToken">Panel API token</label>
+					<div>
+						<label class={label} for="panelUrl">Panel URL</label>
 						<input
-							id="panelToken"
-							name="panelToken"
-							type="password"
+							id="panelUrl"
+							name="panelUrl"
 							class={input}
-							placeholder="Required for Calagopus"
+							value={data.panel.url}
+							placeholder="https://panel.example.com"
 						/>
 					</div>
 				</div>
+				<div class="mt-4">
+					<label class={label} for="panelToken">Panel API token</label>
+					<input
+						id="panelToken"
+						name="panelToken"
+						type="password"
+						class={input}
+						placeholder="Required for Calagopus"
+					/>
+				</div>
+			</div>
 
-				<button
-					type="submit"
-					disabled={$createSubmitting}
-					class="flex w-full items-center justify-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50"
-				>
-					<IconShieldLock class="h-4 w-4" />
-					{$createSubmitting ? 'Creating...' : 'Create administrator'}
-				</button>
-			</form>
+			<button
+				type="submit"
+				disabled={$createSubmitting}
+				class="flex w-full items-center justify-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50"
+			>
+				<IconShieldLock class="h-4 w-4" />
+				{$createSubmitting ? 'Creating...' : 'Create administrator'}
+			</button>
+		</form>
 		{/if}
 	</div>
 </div>
