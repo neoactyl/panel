@@ -14,6 +14,8 @@ import type {
 	Node,
 	PanelActionRequest,
 	PanelActionResult,
+	PanelPrompt,
+	PanelScope,
 	ResourceUsage,
 	Schedule,
 	Server,
@@ -76,6 +78,11 @@ export const adapter = {
 	sendCommand: (id: string, command: string) => call<void>('sendCommand', id, command),
 	getConsole: (id: string) => call<ConsoleLine[]>('getConsole', id),
 	getResources: (id: string) => call<ResourceUsage>('getResources', id),
+	getPanelPrompts: (
+		scope: PanelScope,
+		serverId?: string,
+		context?: { output?: string }
+	) => call<PanelPrompt[]>('getPanelPrompts', scope, serverId, context),
 
 	listAllocations: (id: string) => call<Allocation[]>('listAllocations', id),
 	createAllocation: (id: string) => call<Allocation>('createAllocation', id),

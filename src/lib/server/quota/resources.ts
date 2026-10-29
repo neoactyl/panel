@@ -1,6 +1,6 @@
 import { AdapterError } from '#lib/adapter/sdk.ts';
 import type { Adapter, CreateServer, Server } from '#lib/adapter/sdk.ts';
-import { getBool, getDefaultServerLimits, getNumber, getQuota } from '#lib/server/config/settings.ts';
+import { getDefaultServerLimits, getNumber, getQuota } from '#lib/server/config/settings.ts';
 
 export type ResourceTotals = {
 	cpu: number;
@@ -61,7 +61,7 @@ export const assertWithinQuota = async (
 		maxAllocations: number;
 	}
 ) => {
-	if (!adapter.capabilities.accounts.link || !getBool('panel.linkAccounts')) return;
+	if (!adapter.capabilities.accounts.link) return;
 
 	const defaults = getQuota();
 	const quota = limits ?? { ...defaults, maxServers: maxServersPerUser() };

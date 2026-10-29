@@ -8,7 +8,7 @@ import {
 	type PanelScope
 } from '#lib/adapter/sdk.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
-import { getBool, getPanelConfig } from '#lib/server/config/settings.ts';
+import { getPanelConfig } from '#lib/server/config/settings.ts';
 import { Calagopus } from './calagopus.ts';
 import { MockAdapter } from './mock.ts';
 
@@ -245,7 +245,11 @@ export const getAdapterForUser = (panelUserId: string): Adapter => {
 export const getUserAdapter = (panelUserId?: string): Adapter => {
 	const base = getAdapter();
 
-	if (!base.capabilities.accounts.link || !getBool('panel.linkAccounts')) return base;
+	// Adapters with panel accounts must always scope server access to the
+	// linked panel user. The `panel.linkAccounts` setting only controls
+	// automatic linking during login; it must never make every user share the
+	// admin token and therefore control each other's servers.
+	if (!base.capabilities.accounts.link) return base;
 
 	if (!panelUserId) {
 		error(403, {

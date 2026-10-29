@@ -23,8 +23,16 @@ export class PanelAuthError extends Error {
 
 const accountCapabilities = () => getAdapter().capabilities.accounts;
 
-export const panelAuthEnabled = () =>
-	accountCapabilities().link && getBool('panel.linkAccounts');
+/**
+ * Whether this adapter supports panel accounts at all. This is intentionally
+ * independent of `panel.linkAccounts`: that setting only controls whether
+ * accounts are linked automatically during login.
+ */
+export const panelAuthEnabled = () => accountCapabilities().link;
+
+/** Whether panel accounts are linked automatically when a user signs in. */
+export const panelAutoLinkEnabled = () =>
+	panelAuthEnabled() && getBool('panel.linkAccounts');
 
 export const panelAccountCreationEnabled = () => {
 	const capabilities = accountCapabilities();
@@ -57,7 +65,7 @@ const identityFrom = (body: PanelUserResponse): PanelIdentity | null => {
 	return {
 		id: body.user.uuid,
 		email: body.user.email,
-		username: body.user.username ?? body.user.email.split('@')[0]
+		username: body.user.username ?? body.user.email.split('@')[0] ?? body.user.email
 	};
 };
 
@@ -111,12 +119,12 @@ const findPanelUser = async (email: string): Promise<PanelIdentity | null> => {
 	return {
 		id: match.uuid,
 		email: match.email,
-		username: match.username ?? match.email.split('@')[0]
+		username: match.username ?? match.email.split('@')[0] ?? match.email
 	};
 };
 
 const usernameFor = (name: string, email: string) => {
-	const base = (name || email.split('@')[0])
+	const base = (name || email.split('@')[0] || 'user')
 		.toLowerCase()
 		.replace(/[^a-z0-9_]+/g, '_')
 		.replace(/^_+|_+$/g, '')

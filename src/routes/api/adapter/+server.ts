@@ -27,6 +27,7 @@ const ALLOWED = new Set([
 	'sendCommand',
 	'getConsole',
 	'getResources',
+	'getPanelPrompts',
 	'runPanelAction',
 	'listAllocations',
 	'createAllocation',
@@ -123,9 +124,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const adapter = getUserAdapter(locals.panelUserId);
 	const target = adapter as unknown as Record<string, (...args: unknown[]) => unknown>;
+	const handler = target[method];
+
+	if (typeof handler !== 'function') {
+		error(400, 'Unknown adapter method');
+	}
 
 	try {
-		const result = await target[method](...(body?.args ?? []));
+		const result = await handler.apply(target, body?.args ?? []);
 		return json(result ?? null);
 	} catch (cause) {
 		if (cause instanceof AdapterError) {

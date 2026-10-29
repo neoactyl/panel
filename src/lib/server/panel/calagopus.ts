@@ -943,24 +943,35 @@ export class Calagopus extends Adapter {
     serverId?: string,
     context?: { output?: string },
   ): Promise<PanelPrompt[]> {
-    if (scope !== "server" || !serverId || !context?.output) return [];
+    if (scope !== "server" || !serverId) return [];
 
-    if (
-      !/you need to agree to the eula|go to eula\.txt/i.test(context.output)
-    ) {
-      return [];
-    }
+    const output = context?.output;
+    const mentionsEula = output
+      ? /you need to agree to the eula|go to eula\.txt|agree to the eula/i.test(output)
+      : false;
+
+    // Live output is checked line by line, so avoid a file read for every
+    // unrelated console line.
+    if (output && !mentionsEula) return [];
+
+    let content: string | null = null;
 
     try {
-      const content = await this.readFile(serverId, "/eula.txt");
-      if (/eula\s*=\s*true/i.test(content)) return [];
+      content = await this.readFile(serverId, "/eula.txt");
     } catch {
-      /* a missing eula.txt still needs the prompt */
+      content = null;
     }
+
+    if (content !== null && /eula\s*=\s*true/i.test(content)) return [];
+
+    // Without live output this is a page-load check. Only prompt when an
+    // unaccepted eula.txt exists, which catches servers that stopped for the
+    // EULA before the console was ever opened.
+    if (!output && content === null) return [];
 
     return [
       {
-        id: "minecraft-eula",
+        id: `minecraft-eula:${serverId}`,
         scope: "server",
         serverId,
         title: "Minecraft EULA required",
@@ -985,7 +996,7 @@ export class Calagopus extends Adapter {
     if (
       request.scope === "server" &&
       request.serverId &&
-      request.promptId === "minecraft-eula" &&
+      request.promptId?.startsWith("minecraft-eula") &&
       request.actionId === "accept"
     ) {
       await this.writeFile(request.serverId, "/eula.txt", "eula=true\n");

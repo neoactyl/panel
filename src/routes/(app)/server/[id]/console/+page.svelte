@@ -63,7 +63,7 @@
 		if (!raw) return [];
 
 		const parts = raw.split(' ');
-		const partial = parts[parts.length - 1].toLowerCase();
+		const partial = (parts[parts.length - 1] ?? '').toLowerCase();
 		const committed = parts.slice(0, -1);
 		let node: CommandNode = { l: commandTree, a: [] };
 
@@ -79,7 +79,7 @@
 			.filter((name) => name.startsWith(partial) && name !== partial)
 			.sort()
 			.slice(0, 8)
-			.map((name) => ({ value: name, hint: hintFor(node.l[name]), argument: false }));
+			.map((name) => ({ value: name, hint: hintFor(node.l[name]!), argument: false }));
 
 		if (literals.length) return literals;
 
@@ -122,7 +122,7 @@
 			suggestionIndex = (activeIndex - 1 + visibleSuggestions.length) % visibleSuggestions.length;
 		} else if (event.key === 'Tab') {
 			event.preventDefault();
-			complete(visibleSuggestions[activeIndex]);
+			complete(visibleSuggestions[activeIndex]!);
 		}
 	};
 
@@ -142,8 +142,22 @@
 
 		adapter
 			.getConsole(server.id)
-			.then((lines) => {
-				if (!cancelled && !panel.lines.length) panel.syncLines(lines);
+			.then(async (lines) => {
+				if (cancelled) return;
+
+				if (!panel.lines.length) panel.syncLines(lines);
+
+				// A server that stopped for the EULA only reports it in its
+				// history, before the websocket (or this page) was opened.
+				try {
+					const prompts = await adapter.getPanelPrompts('server', server.id, {
+						output: lines.map((line) => line.text).join('\n')
+					});
+
+					if (!cancelled && prompts.length) panelPrompts.push(...prompts);
+				} catch {
+					/* prompts are best-effort */
+				}
 			})
 			.catch(() => {
 				/* history is best-effort */

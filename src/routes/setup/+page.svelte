@@ -1,7 +1,7 @@
 <script lang="ts">
 	import logo from '#lib/assets/logo.svg';
 
-	let { data }: App.PageData = $props();
+	const {data} = $props();
 
 	const input =
 		'w-full border border-white/10 bg-[#121212] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none';
@@ -10,14 +10,14 @@
 </script>
 
 <svelte:head>
-	<title>Set up {data.branding?.name}</title>
+	<title>Set up</title>
 </svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-6 py-12">
 	<div class="w-full max-w-2xl border border-white/10 bg-[#1a1a1a] p-6 shadow-2xl shadow-black/60 sm:p-8">
 		<div class="flex items-center gap-4 border-b border-white/10 pb-6">
 			<div class="flex h-14 w-14 shrink-0 items-center justify-center border border-white/10 bg-white/5">
-				<img src={data.branding?.logo || logo} alt="" class="h-8 w-auto" />
+				<img src={logo} alt="" class="h-8 w-auto" />
 			</div>
 			<div>
 				<p class="text-[10px] font-semibold tracking-[0.2em] text-indigo-300 uppercase">First run</p>

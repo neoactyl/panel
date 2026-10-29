@@ -8,7 +8,6 @@ import { addCredits, CreditError, spendCredits } from '#lib/server/billing/credi
 import { db } from '#lib/server/db/index.ts';
 import { storefrontItem, storefrontRedemption } from '#lib/server/db/ops.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
-import { getBool } from '#lib/server/config/settings.ts';
 import { effectiveSoftwarePolicy, getSoftwarePolicies } from '#lib/server/catalog/software-policy.ts';
 import { addUserQuota, getEffectiveQuota } from '#lib/server/quota/user.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -31,12 +30,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.where(eq(storefrontRedemption.userId, locals.user!.id));
 
 	const base = getAdapter();
-	const linkRequired = getBool('panel.linkAccounts') && base.capabilities.accounts.link;
+	const linkRequired = base.capabilities.accounts.link;
 	const available = !linkRequired || Boolean(locals.panelUserId);
 	const adapter = available ? getUserAdapter(locals.panelUserId) : null;
-	const quotaEnforced = Boolean(
-		adapter && adapter.capabilities.accounts.link && getBool('panel.linkAccounts')
-	);
+	const quotaEnforced = Boolean(adapter && adapter.capabilities.accounts.link);
 	const effectiveQuota = quotaEnforced ? await getEffectiveQuota(locals.user?.id) : null;
 	const renewal = getRenewalSettings();
 
@@ -242,7 +239,7 @@ export const actions: Actions = {
 				});
 			}
 
-			const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
+			const quotaEnforced = adapter.capabilities.accounts.link;
 
 			const input: CreateServer = {
 				name: item.name,

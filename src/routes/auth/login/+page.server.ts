@@ -4,7 +4,7 @@ import {
 	getPanelAccountOwner,
 	getPanelUserId,
 	linkPanelAccount,
-	panelAuthEnabled,
+	panelAutoLinkEnabled,
 	verifyPanelLogin
 } from '#lib/server/auth/panel-auth.ts';
 import {
@@ -67,7 +67,7 @@ export const actions: Actions = {
 
 		clearLoginFailures(ip);
 
-		if (panelAuthEnabled() && !(await getPanelUserId(signedIn.user.id))) {
+		if (panelAutoLinkEnabled() && !(await getPanelUserId(signedIn.user.id))) {
 			try {
 				const identity = await verifyPanelLogin(email, password);
 

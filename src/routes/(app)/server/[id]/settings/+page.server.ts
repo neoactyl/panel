@@ -9,7 +9,6 @@ import {
 import { CreditError } from '#lib/server/billing/credits.ts';
 import { formatTimeRemaining, getRenewalWindow } from '#lib/renewal-window.ts';
 import { toInt } from '#lib/server/forms.ts';
-import { getBool } from '#lib/server/config/settings.ts';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { resourceTotals } from '#lib/server/quota/resources.ts';
 import { getEffectiveQuota } from '#lib/server/quota/user.ts';
@@ -35,7 +34,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		: null;
 
 	const adapter = getUserAdapter(locals.panelUserId);
-	const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
+	const quotaEnforced = adapter.capabilities.accounts.link;
 
 	if (!quotaEnforced || !adapter.capabilities.servers.update) {
 		return { ...empty, billing: billingView };
@@ -104,7 +103,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
+		const quotaEnforced = adapter.capabilities.accounts.link;
 
 		if (quotaEnforced) {
 			const quota = await getEffectiveQuota(locals.user.id);

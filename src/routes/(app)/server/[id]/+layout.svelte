@@ -8,6 +8,7 @@
 	import IconBolt from '@tabler/icons-svelte/icons/bolt';
 	import { adapter } from '#lib/adapter/client.ts';
 	import type { ServerAction, ServerState } from '#lib/adapter/sdk.ts';
+	import { panelPrompts } from '#lib/panel/prompts.svelte.ts';
 	import { createServerPanel, setServerPanel } from '#lib/panel/state.svelte.ts';
 	import type { LayoutProps } from './$types';
 
@@ -60,6 +61,10 @@
 	} as const;
 
 	$effect(() => {
+		if (data.prompts.length) panelPrompts.push(...data.prompts);
+	});
+
+	$effect(() => {
 		if (!data.capabilities.console.history || data.capabilities.console.websocket) return;
 
 		const id = setInterval(async () => {
@@ -103,13 +108,13 @@
 			</div>
 		</div>
 
-		<div class="flex items-center gap-2">
+		<div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
 			{#each availableActions as action (action)}
 				<button
 					type="button"
 					onclick={() => panel.power(action)}
 					disabled={panel.powerPending}
-					class="flex items-center gap-2 border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 {ACTION_STYLES[
+					class="flex flex-1 items-center justify-center gap-2 border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 sm:flex-none {ACTION_STYLES[
 						action
 					]}"
 				>

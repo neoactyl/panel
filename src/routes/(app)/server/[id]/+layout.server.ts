@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { AdapterError, type Allocation, type PanelBlueprint } from '#lib/adapter/sdk.ts';
+import { AdapterError, type Allocation, type PanelBlueprint, type PanelPrompt } from '#lib/adapter/sdk.ts';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { getServerFeatures, serverFeatureEnabled } from '#lib/server/config/settings.ts';
 import type { LayoutServerLoad } from './$types';
@@ -33,13 +33,22 @@ export const load: LayoutServerLoad = async ({ params, locals, url }) => {
 			/* panel extensions are optional */
 		}
 
+		let prompts: PanelPrompt[] = [];
+
+		try {
+			prompts = await adapter.getPanelPrompts('server', params.id);
+		} catch {
+			/* prompts are best-effort */
+		}
+
 		return {
 			server,
 			allocations,
 			consoleLines: [],
 			capabilities: adapter.capabilities,
 			serverBlueprint,
-			serverFeatures: getServerFeatures()
+			serverFeatures: getServerFeatures(),
+			prompts
 		};
 	} catch (cause) {
 		if (cause instanceof AdapterError && cause.code === 'NOT_FOUND') {

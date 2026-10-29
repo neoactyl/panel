@@ -57,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			)
 		}));
 
-	const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
+	const quotaEnforced = adapter.capabilities.accounts.link;
 	const effectiveQuota = quotaEnforced ? await getEffectiveQuota(locals.user?.id) : null;
 	const renewal = getRenewalSettings();
 
@@ -166,7 +166,7 @@ export const actions: Actions = {
 		}
 
 		const defaults = getDefaultServerLimits();
-		const quotaEnforced = adapter.capabilities.accounts.link && getBool('panel.linkAccounts');
+		const quotaEnforced = adapter.capabilities.accounts.link;
 		const effectiveQuota = quotaEnforced ? await getEffectiveQuota(locals.user?.id) : null;
 		const requestedDatabases = databases ?? 0;
 		const requestedAllocations = allocations ?? 0;
