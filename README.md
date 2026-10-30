@@ -140,8 +140,6 @@ See the [Creative Commons website](https://creativecommons.org/licenses/) for mo
 
 Contributions are welcome. You can help by reporting bugs, suggesting features, improving documentation, or submitting code changes.
 
-Visit the [Neoactyl GitHub organization](https://github.com/neoactyl) to find the project repositories.
-
 ### Sponsors
 
 Sponsors help support the project's development and infrastructure. Sponsor information and acknowledgements will be added here as the project grows.
