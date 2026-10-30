@@ -1,127 +1,35 @@
 import type { Server as HttpServer } from 'node:http';
 import { loadEnv, type Plugin, type PreviewServer, type ViteDevServer } from 'vite';
-import { attachAfkGateway } from './gateway.ts';
+import { attachAfkWhenListening } from './attach.ts';
 
-const attached = new WeakSet<HttpServer>();
-const pending = new WeakSet<HttpServer>();
+type ViteServer = ViteDevServer | PreviewServer;
 
-const resolveAddress = (server: HttpServer, fallbackPort?: number) => {
-	const address = server.address();
+const attach = (server: ViteServer, configuredPort?: number) => {
+	const httpServer = server.httpServer as unknown as HttpServer | null;
+	if (!httpServer) return;
 
-	if (typeof address === 'object' && address !== null) {
-		const host =
-			address.address === '::1'
-				? '[::1]'
-				: address.address === '::' || address.address === '0.0.0.0'
-					? address.family === 'IPv6'
-						? '[::1]'
-						: '127.0.0.1'
-					: address.family === 'IPv6'
-						? `[${address.address}]`
-						: address.address;
+	const env = loadEnv(server.config.mode, server.config.envDir, '');
 
-		return { port: address.port, host };
-	}
-
-	return { port: fallbackPort ?? 5173, host: '127.0.0.1' };
-};
-
-const attach = (
-	server: HttpServer,
-	mode: string,
-	logger: ViteDevServer['config']['logger'],
-	configuredPort?: number
-) => {
-	if (attached.has(server)) return;
-
-	const env = loadEnv(mode, process.cwd(), '');
-	const secret = process.env.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET;
-
-	if (!secret) {
-		logger.error(
-			'[afk] BETTER_AUTH_SECRET is missing; the AFK WebSocket gateway was not started.'
-		);
-		return;
-	}
-
-	const { port, host } = resolveAddress(server, configuredPort);
-	const internalUrl =
-		process.env.AFK_INTERNAL_URL ??
-		env.AFK_INTERNAL_URL ??
-		`http://${host}:${port}/api/afk/internal/ingest`;
-	const allowedOrigins = [
-		env.ORIGIN,
-		`http://localhost:${port}`,
-		`http://127.0.0.1:${port}`,
-		`https://localhost:${port}`,
-		`https://127.0.0.1:${port}`
-	].filter((origin): origin is string => Boolean(origin));
-
-	try {
-		attachAfkGateway(server, {
-			secret,
-			internalUrl,
-			allowedOrigins
-		});
-		attached.add(server);
-		logger.info(`[afk] WebSocket gateway listening on the same server (${internalUrl})`);
-	} catch (cause) {
-		logger.error(
-			`[afk] Unable to start the WebSocket gateway: ${cause instanceof Error ? cause.message : String(cause)}`,
-			{ error: cause instanceof Error ? cause : undefined }
-		);
-	}
-};
-
-/**
- * Waits for `listen()` so the socket's actual port (including an auto-assigned
- * one) is known before the internal ingest URL is built.
- */
-const attachWhenListening = (
-	server: HttpServer,
-	mode: string,
-	logger: ViteDevServer['config']['logger'],
-	configuredPort?: number
-) => {
-	if (server.listening) {
-		attach(server, mode, logger, configuredPort);
-		return;
-	}
-
-	if (pending.has(server)) return;
-
-	pending.add(server);
-	server.once('listening', () => {
-		pending.delete(server);
-		attach(server, mode, logger, configuredPort);
+	attachAfkWhenListening(httpServer, {
+		secret: process.env.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET,
+		internalUrl: process.env.AFK_INTERNAL_URL ?? env.AFK_INTERNAL_URL,
+		allowedOrigins: [env.ORIGIN, env.BETTER_AUTH_URL],
+		fallbackPort: configuredPort,
+		logger: server.config.logger
 	});
 };
 
 /**
- * Runs the AFK transport inside Vite's HTTP server.
+ * Runs the AFK transport inside Vite's HTTP server for `vite dev` and
+ * `vite preview`. Production deployments must attach the same gateway to the
+ * adapter's HTTP server; see `server.ts`.
  */
 export const afkWebSocketPlugin = (): Plugin => ({
 	name: 'neoactyl-afk-websocket',
 	configureServer(server: ViteDevServer) {
-		const httpServer = server.httpServer;
-		if (!httpServer) return;
-
-		attachWhenListening(
-			httpServer as unknown as HttpServer,
-			server.config.mode,
-			server.config.logger,
-			server.config.server.port
-		);
+		attach(server, server.config.server.port);
 	},
 	configurePreviewServer(server: PreviewServer) {
-		const httpServer = server.httpServer;
-		if (!httpServer) return;
-
-		attachWhenListening(
-			httpServer as unknown as HttpServer,
-			server.config.mode,
-			server.config.logger,
-			server.config.preview.port
-		);
+		attach(server, server.config.preview.port);
 	}
 });

@@ -89,26 +89,20 @@ apply on the next heartbeat without a restart. Important values:
 
 ### Production
 
-The Vite plugin covers `vite dev` and `vite preview`. For a Node deployment,
-use `@sveltejs/adapter-node` and attach the same gateway to the adapter's HTTP
-server before calling `handler`. The gateway module has no SvelteKit runtime
-imports, so a Bun entry can import its TypeScript source directly:
+`vite build` targets `@sveltejs/adapter-node`. The Vite plugin only covers
+`vite dev` and `vite preview`; production uses the `server.ts` entry, which
+imports the adapter's HTTP server, attaches the same gateway to it, and keeps
+adapter-node's graceful shutdown behaviour:
 
-```js
-import { createServer } from 'node:http';
-import { handler } from './build/handler.js';
-import { attachAfkGateway } from './src/lib/server/afk/gateway.ts';
-
-const server = createServer(handler);
-
-attachAfkGateway(server, {
-  secret: process.env.BETTER_AUTH_SECRET,
-  internalUrl: `http://127.0.0.1:${process.env.PORT ?? 3000}/api/afk/internal/ingest`,
-  allowedOrigins: [process.env.ORIGIN]
-});
-
-server.listen(process.env.PORT ?? 3000);
+```sh
+bun run build
+bun run start
 ```
+
+`server.ts` reads `BETTER_AUTH_SECRET`, `ORIGIN` (or `BETTER_AUTH_URL`) and the
+optional `AFK_INTERNAL_URL` from the environment. Bun loads `.env`
+automatically; with plain Node, pass `--env-file=.env` and use a runtime that
+can import the TypeScript source.
 
 Serverless platforms (for example Vercel functions) do not keep WebSocket
 connections open; the AFK socket needs a long-lived Node process. If the panel
