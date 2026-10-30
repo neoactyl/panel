@@ -164,6 +164,13 @@ export const banSchema = z.object({
   banned: z.preprocess((v) => String(v) === "true", z.boolean()),
 });
 
+export const deleteSchema = z.object({
+  userId: z.string(),
+  deletePanelAccount: z
+    .preprocess((v) => String(v) === "true", z.boolean())
+    .default(false),
+});
+
 const blankableNumber = (message: string, minimum: number) =>
   z.preprocess((v) => {
     const raw = typeof v === "string" ? v.trim() : v;

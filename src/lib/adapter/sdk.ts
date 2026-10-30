@@ -1,4 +1,4 @@
-import { FetchTimeoutError, fetchWithTimeout } from '#lib/http.ts';
+import { FetchTimeoutError, fetchWithTimeout } from "#lib/http.ts";
 
 export const ADAPTER_CONTRACT_VERSION = 1;
 
@@ -33,6 +33,7 @@ export type AdapterCapabilities = {
   accounts: {
     link: boolean;
     create: boolean;
+    delete: boolean;
   };
   nodes: {
     list: boolean;
@@ -287,13 +288,7 @@ export type ConsoleEvent =
   | { type: "error"; message: string };
 
 export type FileAction =
-  | "open"
-  | "edit"
-  | "download"
-  | "copy"
-  | "compress"
-  | "decompress"
-  | "delete";
+  "open" | "edit" | "download" | "copy" | "compress" | "decompress" | "delete";
 
 export type FileEntry = {
   name: string;
@@ -347,16 +342,11 @@ export type Database = {
   host: string;
   port: number;
   username: string;
-  actions?: ("delete")[];
+  actions?: "delete"[];
 };
 
 export type ScheduleAction =
-  | "restart"
-  | "stop"
-  | "start"
-  | "save-all"
-  | "backup run"
-  | (string & {});
+  "restart" | "stop" | "start" | "save-all" | "backup run" | (string & {});
 
 export type CreateSchedule = {
   name: string;
@@ -659,7 +649,10 @@ export abstract class Adapter {
     this.unsupported("restoreBackup");
   }
 
-  async getBackupDownloadUrl(_id: string, _backupId: string): Promise<string | null> {
+  async getBackupDownloadUrl(
+    _id: string,
+    _backupId: string,
+  ): Promise<string | null> {
     return null;
   }
 
@@ -671,10 +664,7 @@ export abstract class Adapter {
     this.unsupported("listDatabases");
   }
 
-  async createDatabase(
-    _id: string,
-    _input: CreateDatabase,
-  ): Promise<Database> {
+  async createDatabase(_id: string, _input: CreateDatabase): Promise<Database> {
     this.unsupported("createDatabase");
   }
 
@@ -728,6 +718,10 @@ export abstract class Adapter {
 
   async deleteSubuser(_id: string, _subuserId: string): Promise<void> {
     this.unsupported("deleteSubuser");
+  }
+
+  async deleteUser(_userId: string): Promise<void> {
+    this.unsupported("deleteUser");
   }
 
   async listActivities(_id: string): Promise<Activity[]> {
@@ -821,7 +815,7 @@ const CAPABILITY_GROUPS = {
   servers: ["list", "create", "update", "delete", "suspend", "power"],
   console: ["commands", "history", "websocket"],
   files: ["read", "write", "upload", "manage"],
-  accounts: ["link", "create"],
+  accounts: ["link", "create", "delete"],
 } as const;
 
 const FLAG_CAPABILITIES = [
@@ -848,7 +842,9 @@ export const assertAdapterContract = (candidate: unknown): Adapter => {
 
   for (const method of REQUIRED_METHODS) {
     if (typeof candidate[method] !== "function") {
-      throw new Error(`Panel adapter is missing the required "${method}" method.`);
+      throw new Error(
+        `Panel adapter is missing the required "${method}" method.`,
+      );
     }
   }
 
@@ -857,7 +853,9 @@ export const assertAdapterContract = (candidate: unknown): Adapter => {
       group as keyof typeof CAPABILITY_GROUPS
     ] as Record<string, unknown> | undefined;
     if (!capabilities || typeof capabilities !== "object") {
-      throw new Error(`Panel adapter is missing the "${group}" capability group.`);
+      throw new Error(
+        `Panel adapter is missing the "${group}" capability group.`,
+      );
     }
 
     for (const key of keys) {

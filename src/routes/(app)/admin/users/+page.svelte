@@ -3,12 +3,14 @@
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconUser from '@tabler/icons-svelte/icons/user';
 	import IconBan from '@tabler/icons-svelte/icons/ban';
+	import IconTrash from '@tabler/icons-svelte/icons/trash';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const { enhance: enhanceRole, message: roleMessage } = superForm(data.roleForm, { id: 'role' });
 	const { enhance: enhanceBan, message: banMessage } = superForm(data.banForm, { id: 'ban' });
+	const { enhance: enhanceDelete, message: deleteMessage } = superForm(data.deleteForm, { id: 'delete' });
 
 	const date = (value: Date | string | number) =>
 		new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
@@ -35,6 +37,15 @@
 				: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}"
 		>
 			{$banMessage.text}
+		</div>
+	{/if}
+	{#if $deleteMessage && typeof $deleteMessage !== 'string'}
+		<div
+			class="border px-3 py-2 text-sm {$deleteMessage.status === 'error'
+				? 'border-red-500/30 bg-red-500/10 text-red-200'
+				: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}"
+		>
+			{$deleteMessage.text}
 		</div>
 	{/if}
 
@@ -123,6 +134,23 @@
 										>
 											<IconBan class="h-3 w-3" />
 											{account.banned ? 'Unban' : 'Ban'}
+										</button>
+									</form>
+								{/if}
+
+								{#if account.id !== data.user.id}
+									<form method="POST" action="?/delete" use:enhanceDelete onsubmit={() => confirm('Are you sure you want to delete this user? This action cannot be undone.')}>
+										<input type="hidden" name="userId" value={account.id} />
+										<label class="flex items-center gap-2 cursor-pointer">
+											<input type="checkbox" name="deletePanelAccount" value="true" class="h-4 w-4" />
+											<span class="text-[11px] text-white/60">Delete panel account</span>
+										</label>
+										<button
+											type="submit"
+											class="flex items-center gap-1.5 border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/20"
+										>
+											<IconTrash class="h-3 w-3" />
+											Delete
 										</button>
 									</form>
 								{/if}

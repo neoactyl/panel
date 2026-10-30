@@ -235,7 +235,7 @@ export class Calagopus extends Adapter {
     subusers: false,
     activities: false,
     resources: true,
-    accounts: { link: true, create: true },
+    accounts: { link: true, create: true, delete: true },
     nodes: { list: true, update: true },
   };
 
@@ -457,7 +457,7 @@ export class Calagopus extends Adapter {
     return this.#toServer(response.server, usage);
   }
 
- override async getServerOwner(id: string): Promise<string | null> {
+  override async getServerOwner(id: string): Promise<string | null> {
     return this.#cached(`owner:${id}`, 15_000, async () => {
       const response = await this.request<{ server: CalagopusServer }>(
         `/api/admin/servers/${id}`,
@@ -831,7 +831,9 @@ export class Calagopus extends Adapter {
       feature_limits: {
         allocations: 1 + Math.max(0, Math.floor(input.allocations ?? 0)),
         databases:
-          input.databases === undefined ? 1 : Math.max(0, Math.floor(input.databases)),
+          input.databases === undefined
+            ? 1
+            : Math.max(0, Math.floor(input.databases)),
         backups: 2,
         schedules: 1,
       },
@@ -889,7 +891,8 @@ export class Calagopus extends Adapter {
         description: input.description ?? current.server.description,
         limits: (body.limits as CalagopusServerLimits) ?? limits,
         feature_limits:
-          (body.feature_limits as CalagopusServerFeatureLimits) ?? featureLimits,
+          (body.feature_limits as CalagopusServerFeatureLimits) ??
+          featureLimits,
       },
       null,
     );
@@ -955,9 +958,7 @@ export class Calagopus extends Adapter {
 
   override async getStartup(id: string): Promise<Startup> {
     const [server, variables] = await Promise.all([
-      this.request<{ server: CalagopusServer }>(
-        `/api/client/servers/${id}`,
-      ),
+      this.request<{ server: CalagopusServer }>(`/api/client/servers/${id}`),
       this.request<{ variables: CalagopusServerVariable[] }>(
         `/api/client/servers/${id}/startup/variables`,
       ),
@@ -1003,7 +1004,9 @@ export class Calagopus extends Adapter {
 
     const output = context?.output;
     const mentionsEula = output
-      ? /you need to agree to the eula|go to eula\.txt|agree to the eula/i.test(output)
+      ? /you need to agree to the eula|go to eula\.txt|agree to the eula/i.test(
+          output,
+        )
       : false;
 
     // Live output is checked line by line, so avoid a file read for every
@@ -1625,5 +1628,9 @@ export class Calagopus extends Adapter {
     );
     this.#cache.delete(`allocations:${id}`);
     return this.listAllocations(id);
+  }
+
+  override async deleteUser(userId: string): Promise<void> {
+    await this.#jsonRequest(`/api/admin/users/${userId}`, "DELETE", undefined);
   }
 }
