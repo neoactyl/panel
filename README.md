@@ -1,146 +1,151 @@
-# sv
+# Neoactyl
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+> Game server management, reimagined.
 
-## Creating a project
+Neoactyl is an open-source game hosting management panel for managing servers, users, storefronts, credits, and rewards in one place.
 
-If you're seeing this, you've probably already done this step. Congrats!
+It was started because I found Heliactyl slow and awkward to use. I wanted to build a panel with a better user experience and, especially, support for different server management backends.
 
-```sh
-# create a new project
-npx sv create my-app
+Unlike panels that only work with Pterodactyl, Neoactyl uses an adapter system to communicate with different backends. Currently, the Calagopus and Mock adapters are available.
+
+## Why?
+
+I wanted a game hosting panel that didn't feel unnecessarily slow or awkward to navigate.
+
+Neoactyl is my attempt at solving that problem while making the panel flexible enough to work with different server management systems. Instead of tying everything to one backend, Neoactyl uses adapters so that support for other systems can be added independently.
+
+The project is still evolving, but the aim is to keep server management straightforward without limiting hosting providers to a single backend.
+
+## Developer Notice
+
+> [!WARNING]
+> **Neoactyl is under active development.**
+>
+> Features and internal APIs may change, and some parts of the project may still be incomplete. Use it for testing and development rather than relying on it for production hosting.
+
+## Features
+
+### Server Management
+
+- **Full Server Management** — Manage game servers from the Neoactyl dashboard.
+- **Server Renewals** — Let users renew their servers using credits.
+- **Software Selection** — Configure server software through available eggs and nests.
+- **Resource Management** — Manage server resource allocations, including CPU, memory, and disk.
+
+### Economy and Rewards
+
+- **Credits System** — A virtual currency used for purchasing and renewing servers.
+- **Stripe Integration** — Allow users to purchase credits through Stripe.
+- **Storefront** — Offer server plans that users can purchase with credits.
+- **AFK Page** — Let users earn credits through the AFK system.
+- **Discord Invite Rewards** — Reward users for inviting people to a Discord server.
+- **Join for Rewards (J4R)** — Reward users for joining designated Discord servers.
+
+### Adapter System
+
+Neoactyl uses adapters to communicate with server management backends. This keeps backend-specific code separate from the panel itself.
+
+The goal is to support different types of server management systems without requiring a separate Neoactyl interface for each one.
+
+#### Available Adapters
+
+| Adapter       | Description                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| **Calagopus** | Connects Neoactyl to Calagopus.                                                              |
+| **Mock**      | Provides a mock backend for development and testing without a live server management system. |
+
+These are currently the only available adapters. Other backends will need their own adapter implementations before they can be used with Neoactyl.
+
+### Administration
+
+The admin panel includes the following sections:
+
+| Section           | Purpose                                                   |
+| ----------------- | --------------------------------------------------------- |
+| **Servers**       | Manage servers across the panel.                          |
+| **Storefront**    | Manage available server plans.                            |
+| **Economy**       | Manage credits and economy-related features.              |
+| **Users**         | Manage user accounts.                                     |
+| **Softwares**     | Manage software configurations, including eggs and nests. |
+| **Nodes**         | Manage hosting nodes.                                     |
+| **System Health** | Check the status of the system.                           |
+| **Logs**          | Review system and operational logs.                       |
+| **Settings**      | Configure panel settings.                                 |
+
+## Installation
+
+### Requirements
+
+- [Bun](https://bun.sh/)
+- Git
+- A supported database
+- A compatible backend adapter, unless using Mock
+
+### Development
+
+Clone the repository:
+
+```bash
+git clone https://github.com/neoactyl/panel.git
+cd panel
 ```
 
-To recreate this project with the same configuration:
+Install dependencies:
 
-```sh
-# recreate this project
-bun x sv@1.1.1 create --template minimal --types ts --add tailwindcss="plugins:none" drizzle="database:sqlite+sqlite:libsql" better-auth="demo:password" --install bun neoactyl
+```bash
+bun install
 ```
 
-## Adding features
+Create the environment file:
 
-Add features to your project with `sv add`:
-
-```sh
-npx sv add
+```bash
+cp .env.example .env
 ```
 
-For example, to add Tailwind CSS:
+Configure the required environment variables, including the database connection and authentication settings.
 
-```sh
-npx sv add tailwindcss
+Start the development server:
+
+```bash
+bun run dev
 ```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
-
-## AFK earning over WebSockets
-
-AFK credits are awarded by a WebSocket gateway that runs **inside the same
-SvelteKit/Vite HTTP server**. 
-
-1. `POST /api/afk/session` checks the signed-in user and returns a short-lived,
-   HMAC-signed, single-use ticket plus the socket URL.
-2. The browser opens `/api/afk/ws?ticket=…`. The gateway validates the ticket,
-   origin, optional IP/user-agent binding and per-IP session cap.
-3. The browser sends presence heartbeats. The gateway measures every interval
-   itself, rejects gaps outside the configured bounds, and posts the eligible
-   seconds to `POST /api/afk/internal/ingest` with an HMAC signature.
-4. Only that internal endpoint writes credits. A browser can never submit an
-   amount of time or credits directly.
-5. Random interactive presence checks must be answered inside the configured
-   window. Missed or impossibly fast answers add strikes and eventually put the
-   account on cooldown. The daily cap limits the damage from any automated
-   client.
-
-All rules live in **Admin → Settings → Economy → AFK earning & anti-abuse** and
-apply on the next heartbeat without a restart. Important values:
-
-| Setting | Purpose |
-| --- | --- |
-| `heartbeatSeconds` | Presence report cadence (5–120s). |
-| `minHeartbeatGapSeconds` / `maxHeartbeatGapSeconds` | Server-measured window that may be credited. |
-| `idleTimeoutSeconds` / `minInteractionsPerBeat` | Real input requirement. |
-| `challenge*` | Random presence checks, response window and minimum human response time. |
-| `maxStrikes` / `cooldownMinutes` | Strike limit and earning lockout. |
-| `sessionTicketSeconds` | Ticket lifetime; tickets are single-use. |
-| `maxSessionsPerIp` / `bindSessionToIp` / `bindSessionToUserAgent` | Session isolation. |
 
 ### Production
 
-`vite build` targets `@sveltejs/adapter-node`. The Vite plugin only covers
-`vite dev` and `vite preview`; production uses the `server.ts` entry, which
-imports the adapter's HTTP server, attaches the same gateway to it, and keeps
-adapter-node's graceful shutdown behaviour:
+Build the panel:
 
-```sh
-bun run build
-bun run start
+```bash
+bun run --bun build
 ```
 
-`server.ts` reads `BETTER_AUTH_SECRET`, `ORIGIN` (or `BETTER_AUTH_URL`) and the
-optional `AFK_INTERNAL_URL` from the environment. Bun loads `.env`
-automatically; with plain Node, pass `--env-file=.env` and use a runtime that
-can import the TypeScript source.
+Start the application after the build completes:
 
-Serverless platforms (for example Vercel functions) do not keep WebSocket
-connections open; the AFK socket needs a long-lived Node process. If the panel
-runs behind a reverse proxy, set SvelteKit's `ADDRESS_HEADER` and `XFF_DEPTH`
-so the per-IP limits and optional IP binding see the real client address.
-
-## Discord invite bot
-
-The invite bot starts with the web process by default (Discord shard 0). It can
-also run as its own process so the bot is not tied to the web server.
-
-```sh
-# Default: the web process hosts shard 0 of a single-shard bot, and no extra
-# process is needed.
-# DISCORD_SHARD_COUNT=1 DISCORD_SHARD_IDS=0
-
-# Option A: keep shard 0 embedded in the web process and host the other shards
-# separately. Every process needs the same token, database and shard count, and
-# together they must cover every shard id.
-# web process env:
-DISCORD_SHARD_COUNT=4 DISCORD_SHARD_IDS=0
-# bot worker hosts:
-DISCORD_SHARD_COUNT=4 DISCORD_SHARD_IDS=1 bun run bot
-DISCORD_SHARD_COUNT=4 DISCORD_SHARD_IDS=2 bun run bot
-DISCORD_SHARD_COUNT=4 DISCORD_SHARD_IDS=3 bun run bot
-
-# Option B: run the whole bot outside the web process.
-# web process env:
-DISCORD_EMBED_BOT=false
-# bot worker hosts (all shards, or one process per shard):
-DISCORD_SHARD_COUNT=1 bun run bot
+```bash
+bun --bun start
 ```
 
-Each Discord guild is served by exactly one shard
-(`(guild_id >> 22) % shard_count`), so extra shards only do work when the bot is
-in enough guilds. Running a client with a different `DISCORD_SHARD_COUNT` (for
-example the unsharded default next to a 4-shard worker) makes it receive the
-same guild events as the shard it overlaps. A separate host must also be able to
-reach the same database; `file:local.db` is not shared between machines. Use a
-networked libSQL/Turso URL and the same `SETTINGS_ENCRYPTION_KEY` (or provide
-`DISCORD_BOT_TOKEN` directly).
+Make sure the environment is configured correctly before starting the production server.
+
+## License
+
+Neoactyl uses the **Creative Commons Attribution (CC BY)** license.
+
+CC BY allows people to share and adapt licensed material, including for commercial purposes, provided they give appropriate credit, link to the license, and indicate whether changes were made.
+
+See the [Creative Commons website](https://creativecommons.org/licenses/) for more information.
+
+## Contributors and Sponsors
+
+### Contributors
+
+Contributions are welcome. You can help by reporting bugs, suggesting features, improving documentation, or submitting code changes.
+
+Visit the [Neoactyl GitHub organization](https://github.com/neoactyl) to find the project repositories.
+
+### Sponsors
+
+Sponsors help support the project's development and infrastructure. Sponsor information and acknowledgements will be added here as the project grows.
+
+---
+
+**Neoactyl** — Game server management, reimagined.
