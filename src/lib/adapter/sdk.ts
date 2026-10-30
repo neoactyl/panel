@@ -308,6 +308,12 @@ export type FileSystem = {
   tree: Record<string, FileEntry[]>;
 };
 
+export type UploadFile = {
+  name: string;
+  size: number;
+  content?: string | Uint8Array;
+};
+
 export type Allocation = {
   id: string;
   ip: string;
@@ -787,7 +793,7 @@ export abstract class Adapter {
   async uploadFiles(
     _id: string,
     _directory: string,
-    _files: Array<{ name: string; size: number; content?: string }>,
+    _files: UploadFile[],
   ): Promise<FileEntry[]> {
     this.unsupported("uploadFiles");
   }

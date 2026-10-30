@@ -24,8 +24,11 @@ import {
   type Software,
   type SoftwareGroup,
   type SoftwareVariable,
+  type Startup,
   type UpdateServer,
   type UpdateNode,
+  type UpdateStartup,
+  type UploadFile,
   type User,
   type WebsocketCredentials,
 } from "#lib/adapter/sdk.ts";
@@ -68,6 +71,7 @@ type CalagopusServer = {
   owner?: { uuid?: string; email?: string } | null;
   egg?: { name?: string } | null;
   image?: string | null;
+  startup?: string | null;
   allocation?: { ip?: string; port?: number } | null;
 };
 
@@ -92,6 +96,17 @@ type CalagopusVariable = {
   default_value?: string | null;
   user_editable?: boolean | null;
   user_viewable?: boolean | null;
+};
+
+type CalagopusServerVariable = {
+  env_variable: string;
+  name?: string | null;
+  description?: string | null;
+  default_value?: string | null;
+  value?: string | null;
+  is_editable: boolean;
+  is_secret?: boolean;
+  rules?: string[];
 };
 
 type CalagopusNode = {
@@ -211,12 +226,12 @@ export class Calagopus extends Adapter {
       power: true,
     },
     console: { commands: true, history: true, websocket: true },
-    files: { read: true, write: true, upload: false, manage: false },
+    files: { read: true, write: true, upload: true, manage: false },
     allocations: true,
     backups: true,
     databases: true,
     schedules: false,
-    startup: false,
+    startup: true,
     subusers: false,
     activities: false,
     resources: true,
@@ -938,6 +953,47 @@ export class Calagopus extends Adapter {
     };
   }
 
+  override async getStartup(id: string): Promise<Startup> {
+    const [server, variables] = await Promise.all([
+      this.request<{ server: CalagopusServer }>(
+        `/api/client/servers/${id}`,
+      ),
+      this.request<{ variables: CalagopusServerVariable[] }>(
+        `/api/client/servers/${id}/startup/variables`,
+      ),
+    ]);
+
+    return {
+      image: server.server.image ?? "",
+      command: server.server.startup ?? "",
+      variables: variables.variables.map((variable) => ({
+        key: variable.env_variable,
+        name: variable.name || variable.env_variable,
+        description: variable.description ?? "",
+        value: variable.value ?? variable.default_value ?? "",
+        editable: variable.is_editable,
+      })),
+    };
+  }
+
+  override async updateStartup(
+    id: string,
+    input: UpdateStartup,
+  ): Promise<Startup> {
+    await this.#jsonRequest(
+      `/api/client/servers/${id}/startup/variables`,
+      "PUT",
+      {
+        variables: input.variables.map(({ key, value }) => ({
+          env_variable: key,
+          value,
+        })),
+      },
+    );
+
+    return this.getStartup(id);
+  }
+
   override async getPanelPrompts(
     scope: PanelScope,
     serverId?: string,
@@ -1205,6 +1261,58 @@ export class Calagopus extends Adapter {
       "POST",
       { root: this.#panelPath(this.#parent(path)), file: this.#basename(path) },
     );
+  }
+
+  override async uploadFiles(
+    id: string,
+    directory: string,
+    files: UploadFile[],
+  ): Promise<FileEntry[]> {
+    if (files.length === 0) return [];
+
+    const { url } = await this.request<{ url: string }>(
+      `/api/client/servers/${id}/files/upload`,
+    );
+
+    const endpoint = new URL(url, this.url);
+    endpoint.searchParams.set("directory", this.#panelPath(directory));
+
+    const form = new FormData();
+
+    for (const file of files) {
+      const content = file.content ?? "";
+      const body =
+        typeof content === "string" ? content : new Uint8Array(content);
+      form.append("files", new Blob([body as BlobPart]), file.name);
+    }
+
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(
+        endpoint,
+        { method: "POST", body: form },
+        300_000,
+      );
+    } catch {
+      throw new AdapterError("Unable to upload the file", "NETWORK");
+    }
+
+    if (!response.ok) {
+      const details = await response.text().catch(() => "");
+      throw new AdapterError(
+        details || `The panel rejected the upload (${response.status})`,
+        errorForStatus(response.status),
+        response.status,
+      );
+    }
+
+    return files.map((file) => ({
+      name: file.name,
+      type: "file" as const,
+      size: file.size,
+      modified: new Date().toISOString(),
+      actions: ["edit", "download", "copy", "compress", "delete"],
+    }));
   }
 
   override async getFileDownloadUrl(

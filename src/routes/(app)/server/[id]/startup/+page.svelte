@@ -22,7 +22,9 @@
 
 		try {
 			const startup = await adapter.updateStartup(panel.server.id, {
-				variables: variables.map(({ key, value }) => ({ key, value }))
+				variables: variables
+					.filter((variable) => variable.editable)
+					.map(({ key, value }) => ({ key, value }))
 			});
 			variables = [...startup.variables];
 			panel.showNotice('Startup variables saved.');
@@ -52,7 +54,9 @@
 <section class="border border-white/10 bg-[#1a1a1a] p-6">
 	<div>
 		<p class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Docker image</p>
-		<p class="mt-1 truncate font-mono text-xs text-white/60">{data.startup.image}</p>
+		<p class="mt-1 truncate font-mono text-xs text-white/60">
+			{data.startup.image || 'No image configured'}
+		</p>
 	</div>
 
 	<div class="mt-5">
@@ -60,7 +64,9 @@
 		<div
 			class="mt-1 flex items-start justify-between gap-3 border border-white/10 bg-[#0d0d0d] px-3 py-2"
 		>
-			<code class="break-all font-mono text-xs text-white/60">{data.startup.command}</code>
+			<code class="break-all font-mono text-xs text-white/60">
+				{data.startup.command || 'No startup command configured'}
+			</code>
 			<button
 				type="button"
 				onclick={copyCommand}
@@ -97,7 +103,19 @@
 		{#each variables as variable (variable.key)}
 			<div class="grid gap-3 px-4 py-3 sm:grid-cols-[14rem_1fr]">
 				<div>
-					<p class="font-mono text-xs text-white/80">{variable.key}</p>
+					<div class="flex flex-wrap items-center gap-2">
+						<p class="font-mono text-xs text-white/80">{variable.key}</p>
+						{#if !variable.editable}
+							<span
+								class="border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold tracking-widest text-white/40 uppercase"
+							>
+								Read only
+							</span>
+						{/if}
+					</div>
+					{#if variable.name && variable.name !== variable.key}
+						<p class="mt-0.5 text-[11px] text-white/60">{variable.name}</p>
+					{/if}
 					<p class="mt-0.5 text-[11px] text-white/40">{variable.description}</p>
 				</div>
 				<input

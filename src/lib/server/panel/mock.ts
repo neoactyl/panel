@@ -31,6 +31,7 @@ import type {
   UpdateNode,
   UpdateStartup,
   UpdateSubuser,
+  UploadFile,
   User,
 } from "#lib/adapter/sdk.ts";
 import { SAMPLE_SERVERS, NODES } from "./fixtures/servers.ts";
@@ -1150,7 +1151,7 @@ export class MockAdapter extends Adapter {
   override async uploadFiles(
     id: string,
     directory: string,
-    files: Array<{ name: string; size: number; content?: string }>,
+    files: UploadFile[],
   ): Promise<FileEntry[]> {
     const system = this.#filesFor(id);
     const list = system.tree[directory] ?? (system.tree[directory] = []);
@@ -1160,7 +1161,7 @@ export class MockAdapter extends Adapter {
         type: "file" as const,
         size: file.size,
         modified: now(),
-        content: file.content ?? "",
+        content: typeof file.content === "string" ? file.content : "",
       }),
     );
     list.push(...created);

@@ -28,6 +28,7 @@ import type {
 	UpdateServer,
 	UpdateStartup,
 	UpdateSubuser,
+	UploadFile,
 	User
 } from './sdk';
 
@@ -142,9 +143,6 @@ export const adapter = {
 	compressFiles: (id: string, paths: string[], name: string) =>
 		call<FileEntry>('compressFiles', id, paths, name),
 	decompressFile: (id: string, path: string) => call<void>('decompressFile', id, path),
-	uploadFiles: (
-		id: string,
-		directory: string,
-		files: Array<{ name: string; size: number; content?: string }>
-	) => call<FileEntry[]>('uploadFiles', id, directory, files)
+	uploadFiles: (id: string, directory: string, files: UploadFile[]) =>
+		call<FileEntry[]>('uploadFiles', id, directory, files)
 };
