@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import { getAuth, type AuthApi } from "#lib/server/auth/auth.ts";
 import { hasAdmin, setUserRole } from "#lib/server/auth/admin.ts";
 import { user } from "#lib/server/db/auth.schema.ts";
@@ -78,11 +78,11 @@ export const actions: Actions = {
     const panelToken = str(form, "panelToken");
 
     if (!name || !email || !password || !confirmPassword) {
-      return { status: 400, body: "All fields are required." };
+      return fail(400, { error: "All fields are required." });
     }
 
     if (password !== confirmPassword) {
-      return { status: 400, body: "Passwords do not match." };
+      return fail(400, { error: "Passwords do not match." });
     }
 
     const existing = await db
@@ -92,21 +92,19 @@ export const actions: Actions = {
       .limit(1);
 
     if (existing.length > 0) {
-      return { status: 400, body: "That email already exists. Sign in first." };
+      return fail(400, { error: "That email already exists. Sign in first." });
     }
 
     if (adapter === "calagopus") {
       if (!/^https?:\/\/.+/i.test(panelUrl)) {
-        return {
-          status: 400,
-          body: "A valid Calagopus panel URL is required.",
-        };
+        return fail(400, {
+          error: "A valid Calagopus panel URL is required.",
+        });
       }
       if (!panelToken) {
-        return {
-          status: 400,
-          body: "A panel API token is required for Calagopus.",
-        };
+        return fail(400, {
+          error: "A panel API token is required for Calagopus.",
+        });
       }
     }
 
@@ -128,19 +126,17 @@ export const actions: Actions = {
         body: { name, email, password },
       });
     } catch {
-      return {
-        status: 400,
-        body: "Unable to create the administrator account.",
-      };
+      return fail(400, {
+        error: "Unable to create the administrator account.",
+      });
     }
 
     const oldest = await firstUser();
 
     if (!oldest || oldest.id !== created.user.id) {
-      return {
-        status: 409,
-        body: "Another account was created first. Sign in with the first account.",
-      };
+      return fail(409, {
+        error: "Another account was created first. Sign in with the first account.",
+      });
     }
 
     await setUserRole(created.user.id, "admin");

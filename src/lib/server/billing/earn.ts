@@ -220,7 +220,7 @@ export const startEarnTask = async (userId: string, taskId: string) => {
 	}
 
 	const needsVerification = usesLinkvertiseVerification(task, publisherId);
-	const [created] = await db
+	const [inserted] = await db
 		.insert(earnTaskCompletion)
 		.values({
 			taskId: task.id,
@@ -231,6 +231,12 @@ export const startEarnTask = async (userId: string, taskId: string) => {
 			createdAt: new Date()
 		})
 		.returning();
+
+	const created = inserted;
+
+	if (!created) {
+		throw new EarnError('Unable to start that task. Please try again.', 'INVALID');
+	}
 
 	return {
 		completionId: created.id,

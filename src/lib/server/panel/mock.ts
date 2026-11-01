@@ -484,7 +484,7 @@ export class MockAdapter extends Adapter {
       name: input.name,
       identifier: id.slice(0, 8),
       description: input.description || "Newly provisioned · never started",
-      node: input.node ?? NODES[0],
+      node: input.node ?? NODES[0] ?? "node-01",
       image: "ghcr.io/pterodactyl/yolks:java_21",
       version: "1.21.10",
       state: "offline",
@@ -975,7 +975,7 @@ export class MockAdapter extends Adapter {
 
     const subuser: Subuser = {
       id: crypto.randomUUID(),
-      username: email.split("@")[0],
+      username: email.split("@")[0] ?? email,
       email,
       permissions: input.permissions ?? ["control.console", "file.read"],
       addedAt: now(),

@@ -78,7 +78,7 @@ The admin panel includes the following sections:
 
 - [Bun](https://bun.sh/)
 - Git
-- A supported database
+- A supported database (SQLite/libSQL by default)
 - A compatible backend adapter, unless using Mock
 
 ### Development
@@ -88,43 +88,61 @@ Clone the repository:
 ```bash
 git clone https://github.com/neoactyl/panel.git
 cd panel
-```
-
-Install dependencies:
-
-```bash
 bun install
-```
-
-Create the environment file:
-
-```bash
 cp .env.example .env
 ```
 
-Configure the required environment variables, including the database connection and authentication settings.
+Configure the required environment variables in `.env`: `DATABASE_URL`, `ORIGIN`, and a `BETTER_AUTH_SECRET` of at least 32 random characters. See [Configuration](docs/configuration.md) for the full list.
 
-Start the development server:
+Create the database schema, then start the development server:
 
 ```bash
+bun run db:push
 bun run dev
 ```
+
+Open <http://localhost:5173>. On an empty database you are redirected to `/setup` to create the first administrator and choose an adapter.
+
+### Docker
+
+A production-oriented Compose setup is included:
+
+```bash
+cp .env.example .env
+# edit .env, especially ORIGIN and BETTER_AUTH_SECRET
+docker compose up -d --build
+```
+
+The panel is available on <http://localhost:3000>. See [Deployment](docs/deployment.md) for volumes, reverse proxies, backups, and upgrades.
 
 ### Production
 
 Build the panel:
 
 ```bash
-bun run --bun build
+bun run build
 ```
 
-Start the application after the build completes:
+Apply database migrations and start the application:
 
 ```bash
-bun --bun start
+bun run db:migrate:prod
+bun run start
 ```
 
-Make sure the environment is configured correctly before starting the production server.
+Make sure the environment is configured correctly before starting the production server. The app must run as a long-lived process because it hosts the AFK WebSocket gateway and background jobs.
+
+## Documentation
+
+- [Getting started](docs/getting-started.md)
+- [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Adapters](docs/adapters.md)
+- [Deployment](docs/deployment.md)
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding guidelines, tests, and pull request expectations.
 
 ## License
 

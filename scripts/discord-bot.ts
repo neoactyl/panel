@@ -47,10 +47,11 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// A separate process does not have SvelteKit's virtual `$app/env/private`
-// module. The bot does not use the web session/auth configuration, so provide
-// harmless placeholders for the two shared values it does not need. The bot
-// token is read from DISCORD_BOT_TOKEN or from the encrypted database setting;
+// A separate process does not have SvelteKit's virtual `$app/env` or
+// `$app/env/private` modules. The bot does not use the web session/auth
+// configuration, so provide harmless placeholders for the values it does not
+// need. The bot token is read from DISCORD_BOT_TOKEN or from the encrypted
+// database setting;
 // in the latter case SETTINGS_ENCRYPTION_KEY (or the same BETTER_AUTH_SECRET
 // used by the web process) must be available to decrypt it.
 const environment: Record<string, string | undefined> = { ...process.env };
@@ -72,6 +73,10 @@ runtime.plugin({
     build.module("$app/env/private", () => ({
       loader: "object",
       exports: environment,
+    }));
+    build.module("$app/env", () => ({
+      loader: "object",
+      exports: { building: false },
     }));
   },
 });

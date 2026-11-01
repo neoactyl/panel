@@ -1,3 +1,4 @@
+import { building } from "$app/env";
 import * as env from "$app/env/private";
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
@@ -6,6 +7,19 @@ const optionalString = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().min(1).optional(),
 );
+
+/**
+ * `vite build` evaluates server modules to analyse routes, but the real
+ * runtime environment is not available at that point. Use inert placeholders
+ * and skip validation while building; the normal schemas below still run when
+ * the app actually starts.
+ */
+const buildEnv = {
+  DATABASE_URL: "file:build.db",
+  ORIGIN: "http://localhost:3000",
+  BETTER_AUTH_SECRET: "build-time-placeholder-secret-000000000000",
+  SETTINGS_ENCRYPTION_KEY: "build-time-placeholder-key-00000000000000",
+};
 
 export const serverEnv = createEnv({
   server: {
@@ -25,6 +39,9 @@ export const serverEnv = createEnv({
     STRIPE_SECRET_KEY: optionalString,
     STRIPE_WEBHOOK_SECRET: optionalString,
   },
-  runtimeEnv: env,
+  // Spread into a plain object: createEnv deletes empty strings from this
+  // object, and imported environment modules are not mutable.
+  runtimeEnv: building ? buildEnv : { ...env },
+  skipValidation: building,
   emptyStringAsUndefined: true,
 });

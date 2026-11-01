@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import type { SubmitFunction } from '@sveltejs/kit';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
@@ -32,14 +31,16 @@
 			};
 		};
 
-	const formatPrice = (cents: number, currency: string) => {
+	const formatPrice = (cents: number | string, currency: string) => {
+		const amount = Number(cents) / 100;
+
 		try {
 			return new Intl.NumberFormat(undefined, {
 				style: 'currency',
 				currency: currency.toUpperCase()
-			}).format(cents / 100);
+			}).format(amount);
 		} catch {
-			return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+			return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
 		}
 	};
 

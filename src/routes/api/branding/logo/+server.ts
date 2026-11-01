@@ -16,11 +16,17 @@ export const GET: RequestHandler = async () => {
 		error(404, 'The stored logo is invalid.');
 	}
 
-	const body = Buffer.from(match[2], 'base64');
+	const [, mimeType, encoded] = match;
 
-	return new Response(body, {
+	if (!mimeType || !encoded) {
+		error(404, 'The stored logo is invalid.');
+	}
+
+	const body = Buffer.from(encoded, 'base64');
+
+	return new Response(new Uint8Array(body), {
 		headers: {
-			'content-type': match[1],
+			'content-type': mimeType,
 			'cache-control': 'public, max-age=60',
 			'content-length': String(body.byteLength)
 		}

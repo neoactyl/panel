@@ -520,7 +520,8 @@
 											{#if egg.versions.length}
 												<span class="mt-auto text-[11px] text-white/30">
 													{egg.versions.find((version) => version.latest)?.name ??
-														egg.versions[0].name}
+														egg.versions[0]?.name ??
+														''}
 												</span>
 											{/if}
 										</button>

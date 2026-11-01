@@ -1,7 +1,8 @@
 <script lang="ts">
 	import logo from '#lib/assets/logo.svg';
+	import type { PageProps } from './$types';
 
-	const {data} = $props();
+	let { data, form }: PageProps = $props();
 
 	const input =
 		'w-full border border-white/10 bg-[#121212] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none';
@@ -26,9 +27,9 @@
 			</div>
 		</div>
 
-		{#if data.error}
+		{#if form?.error}
 			<div class="mt-5 border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-				{data.error}
+				{form.error}
 			</div>
 		{/if}
 

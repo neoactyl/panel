@@ -1,0 +1,22 @@
+name: neoactyl
+
+services:
+  panel:
+    build: .
+    image: neoactyl:latest
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      # Keep the SQLite database on the mounted volume. Change this to a
+      # libSQL/Turso URL if you use a hosted database instead.
+      DATABASE_URL: file:/data/neoactyl.db
+      NODE_ENV: production
+      PORT: "3000"
+      # These must match the URL users open in the browser.
+      ORIGIN: ${ORIGIN:-http://localhost:3000}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+    volumes:
+      - ./data:/data

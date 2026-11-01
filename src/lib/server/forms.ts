@@ -7,7 +7,7 @@ export const formString = (data: FormData, key: string) => String(data.get(key) 
  * Returns null when the value is missing or invalid.
  */
 export const toInt = (
-	value: FormDataEntryValue | string | null | undefined,
+	value: FormDataEntryValue | string | number | null | undefined,
 	minimum = 0
 ): number | null => {
 	if (value === null || value === undefined) return null;
@@ -23,7 +23,7 @@ export const toInt = (
  * Like `toInt`, but distinguishes an absent value (undefined) from an invalid one (null).
  */
 export const toOptionalInt = (
-	value: FormDataEntryValue | string | null | undefined,
+	value: FormDataEntryValue | string | number | null | undefined,
 	minimum = 0
 ): number | undefined | null => {
 	if (value === null || value === undefined || String(value).trim() === '') return undefined;

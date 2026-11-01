@@ -135,7 +135,8 @@ export const assertLoginAllowed = (ip: string) => {
 	failures.set(ip, recent);
 
 	if (recent.length >= max) {
-		const unlockIn = Math.ceil((windowMs - (now - recent[0])) / 60000);
+		const oldest = recent[0] ?? now;
+		const unlockIn = Math.ceil((windowMs - (now - oldest)) / 60000);
 		throw new SecurityError(
 			`Too many failed sign-in attempts. Try again in ${Math.max(1, unlockIn)} minute(s).`,
 			'LOGIN_LOCKED'

@@ -11,13 +11,13 @@ const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 
 // Top-to-bottom gradient: bright mint green -> deep green.
-const from = [140, 255, 175];
-const to = [0, 165, 85];
+const FROM = { r: 140, g: 255, b: 175 };
+const TO = { r: 0, g: 165, b: 85 };
 
 const rgb = (line: number) => {
 	const t = line / (LOGO.length - 1);
-	const [r, g, b] = from.map((start, i) => Math.round(start + (to[i] - start) * t));
-	return `\x1b[38;2;${r};${g};${b}m`;
+	const mix = (start: number, end: number) => Math.round(start + (end - start) * t);
+	return `\x1b[38;2;${mix(FROM.r, TO.r)};${mix(FROM.g, TO.g)};${mix(FROM.b, TO.b)}m`;
 };
 
 export const createBanner = (tagline = 'Game server panel') =>
