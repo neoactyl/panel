@@ -1,11 +1,28 @@
 import { defineConfig } from 'drizzle-kit';
+import {
+	databaseConfig,
+	isRemoteDatabase
+} from './src/lib/server/db/connection.ts';
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+const credentials = databaseConfig(process.env);
+const remote = isRemoteDatabase(credentials.url);
 
-export default defineConfig({
+const shared = {
 	schema: './src/lib/server/db/schema.ts',
-	dialect: 'sqlite',
-	dbCredentials: { url: process.env.DATABASE_URL },
 	verbose: true,
 	strict: true
-});
+} as const;
+
+export default defineConfig(
+	remote
+		? {
+				...shared,
+				dialect: 'turso',
+				dbCredentials: credentials
+			}
+		: {
+				...shared,
+				dialect: 'sqlite',
+				dbCredentials: { url: credentials.url }
+			}
+);

@@ -43,7 +43,7 @@ docker compose down
 | `/data`   | Persisted data directory. Compose bind-mounts `./data` from the host.   |
 | `/app`    | Application code, build output, migrations, and production dependencies. |
 
-The Compose file overrides `DATABASE_URL` to `file:/data/neoactyl.db`, so the SQLite database survives container rebuilds. If you use an external libSQL/Turso database, replace that value with your connection string and remove the volume if it is no longer needed.
+The Compose file overrides `DATABASE_URL` to `file:/data/neoactyl.db`, so the SQLite database survives container rebuilds. To use a hosted [Turso](https://turso.tech/) database instead, remove that override and set `DATABASE_URL`/`DATABASE_AUTH_TOKEN` or `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` in `.env`. The `/data` volume is then only needed for uploaded assets, so keep it if you use file uploads.
 
 On start, the container:
 

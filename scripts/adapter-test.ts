@@ -1,8 +1,9 @@
 import { Calagopus } from "../src/lib/server/panel/calagopus.ts";
 import { AdapterError } from "../src/lib/adapter/sdk.ts";
 import { createClient } from "@libsql/client";
+import { databaseConfig } from "../src/lib/server/db/connection.ts";
 
-const client = createClient({ url: process.env.DATABASE_URL ?? "file:local.db" });
+const client = createClient(databaseConfig(process.env));
 const setting = async (key: string) => {
   const result = await client.execute({
     sql: "select value from settings where key = ?",

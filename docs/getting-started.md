@@ -4,7 +4,7 @@
 
 - [Bun](https://bun.sh/) (current stable release)
 - Git
-- A supported database. SQLite/libSQL is the default; a networked libSQL/Turso database works too.
+- A supported database. SQLite/libSQL is the default; a hosted [Turso](https://turso.tech/) or networked libSQL database works too. See [Using Turso](configuration.md#using-turso).
 - A backend adapter. Use the built-in **Mock** adapter to explore the panel without a game hosting backend, or connect **Calagopus** with a panel URL and API token.
 
 For a container-based install, you only need Docker with the Compose plugin. See [Deployment](deployment.md).

@@ -11,11 +11,11 @@ Environment variables are described in [`.env.example`](../.env.example) and val
 
 ### Required
 
-| Variable             | Description                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`       | libSQL connection string. Use `file:local.db` for SQLite or a `libsql://`/`https://` URL.   |
-| `ORIGIN`             | Public base URL of the panel, for example `https://panel.example.com`.                       |
-| `BETTER_AUTH_SECRET` | Secret used to sign sessions and tokens. Use at least 32 random characters in production.     |
+| Variable             | Description                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | libSQL connection string. Use `file:local.db` for SQLite or a `libsql://`/`https://` URL. Aliased by `TURSO_DATABASE_URL`. |
+| `ORIGIN`             | Public base URL of the panel, for example `https://panel.example.com`.                                                 |
+| `BETTER_AUTH_SECRET` | Secret used to sign sessions and tokens. Use at least 32 random characters in production.                               |
 
 Generate a secret with:
 
@@ -25,13 +25,47 @@ openssl rand -base64 32
 
 Empty values are treated as unset. Builds do not require the runtime secrets above: environment validation is relaxed during `vite build` and enforced when the server starts. This means a fresh `.env` copied from `.env.example` can still build, but the app will refuse to start until `ORIGIN` and `BETTER_AUTH_SECRET` are filled in.
 
+### Using Turso
+
+Neoactyl uses [libSQL](https://github.com/tursodatabase/libsql), the database engine behind [Turso](https://turso.tech/), so a hosted Turso database is a drop-in replacement for a local SQLite file. Create a database and collect its credentials with the Turso CLI:
+
+```bash
+turso db create neoactyl
+turso db show neoactyl --url
+turso db tokens create neoactyl
+```
+
+Then set the values in `.env`:
+
+```dotenv
+DATABASE_URL=libsql://neoactyl-your-org.turso.io
+DATABASE_AUTH_TOKEN=replace-with-the-token
+```
+
+The Turso-native names work too, which is convenient when a hosting integration injects them automatically:
+
+```dotenv
+TURSO_DATABASE_URL=libsql://neoactyl-your-org.turso.io
+TURSO_AUTH_TOKEN=replace-with-the-token
+```
+
+`DATABASE_URL` and `DATABASE_AUTH_TOKEN` take precedence when both names are set. Apply the migrations once before the first start:
+
+```bash
+bun run db:migrate:prod
+```
+
+Remote databases work with every `drizzle-kit` command (`db:push`, `db:generate`, `db:migrate`, and `db:studio`) because `drizzle.config.ts` detects `libsql://`, `https://`, and `wss://` URLs automatically. Use `db:push` only for development; production installations should apply the migrations in `drizzle/`.
+
+Turso's embedded replicas (a local file kept in sync with a remote primary) are not configured by Neoactyl. Use the direct `libsql://` URL so every web process and bot shard sees the same database.
+
 ### Recommended
 
 | Variable                  | Description                                                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `BETTER_AUTH_URL`         | Base URL used by Better Auth. Defaults to `ORIGIN`. Set it separately only if they should differ.        |
 | `SETTINGS_ENCRYPTION_KEY` | Encrypts panel API tokens at rest with AES-256-GCM. 32+ random characters. Falls back to the auth secret. |
-| `DATABASE_AUTH_TOKEN`     | Auth token for a networked libSQL/Turso database. Not needed for local SQLite.                           |
+| `DATABASE_AUTH_TOKEN`     | Auth token for a networked libSQL/Turso database. Not needed for local SQLite. Aliased by `TURSO_AUTH_TOKEN`. |
 
 Use a dedicated `SETTINGS_ENCRYPTION_KEY` in production. Changing it after panel tokens have been stored makes those tokens unreadable.
 

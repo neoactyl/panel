@@ -22,6 +22,16 @@ export const variables = defineEnvVars({
 			'Optional auth token for a networked libSQL/Turso database. Required when DATABASE_URL points at a remote database that enforces authentication.',
 		schema: optionalString
 	},
+	TURSO_DATABASE_URL: {
+		description:
+			'Turso database URL, used when DATABASE_URL is unset. Values from the Turso CLI and dashboard use this name.',
+		schema: optionalString
+	},
+	TURSO_AUTH_TOKEN: {
+		description:
+			'Turso database auth token, used when DATABASE_AUTH_TOKEN is unset. Values from the Turso CLI and dashboard use this name.',
+		schema: optionalString
+	},
 	ORIGIN: {
 		description: 'The app origin (base URL), e.g. `http://localhost:5173`.',
 		schema: optionalString

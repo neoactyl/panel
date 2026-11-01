@@ -31,6 +31,11 @@ type BunRuntime = {
   plugin(plugin: { name: string; setup(build: BunBuild): void }): void;
 };
 
+import {
+  resolveDatabaseAuthToken,
+  resolveDatabaseUrl,
+} from "../src/lib/server/db/connection.ts";
+
 const runtime = (globalThis as typeof globalThis & { Bun?: BunRuntime }).Bun;
 
 if (!runtime) {
@@ -40,9 +45,9 @@ if (!runtime) {
   process.exit(1);
 }
 
-if (!process.env.DATABASE_URL) {
+if (!resolveDatabaseUrl(process.env)) {
   console.error(
-    "[discord] DATABASE_URL is not set. The bot reads settings and invite rewards from the panel database.",
+    "[discord] DATABASE_URL (or TURSO_DATABASE_URL) is not set. The bot reads settings and invite rewards from the panel database.",
   );
   process.exit(1);
 }
@@ -51,11 +56,12 @@ if (!process.env.DATABASE_URL) {
 // `$app/env/private` modules. The bot does not use the web session/auth
 // configuration, so provide harmless placeholders for the values it does not
 // need. The bot token is read from DISCORD_BOT_TOKEN or from the encrypted
-// database setting;
-// in the latter case SETTINGS_ENCRYPTION_KEY (or the same BETTER_AUTH_SECRET
-// used by the web process) must be available to decrypt it.
+// database setting; in the latter case SETTINGS_ENCRYPTION_KEY (or the same
+// BETTER_AUTH_SECRET used by the web process) must be available to decrypt it.
 const environment: Record<string, string | undefined> = { ...process.env };
 
+environment.DATABASE_URL ??= resolveDatabaseUrl(process.env);
+environment.DATABASE_AUTH_TOKEN ??= resolveDatabaseAuthToken(process.env);
 environment.ORIGIN ??= "http://localhost:5173";
 environment.BETTER_AUTH_URL ??= environment.ORIGIN;
 environment.BETTER_AUTH_SECRET ??= "standalone-discord-bot-placeholder-secret";

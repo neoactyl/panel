@@ -23,8 +23,10 @@ const buildEnv = {
 
 export const serverEnv = createEnv({
   server: {
-    DATABASE_URL: z.string().min(1),
+    DATABASE_URL: optionalString,
     DATABASE_AUTH_TOKEN: optionalString,
+    TURSO_DATABASE_URL: optionalString,
+    TURSO_AUTH_TOKEN: optionalString,
     ORIGIN: z.string().url(),
     BETTER_AUTH_URL: z.string().url().optional(),
     BETTER_AUTH_SECRET: z.string().min(32),
