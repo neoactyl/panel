@@ -4,6 +4,7 @@
 	import AdminSidebar from '#lib/components/app/AdminSidebar.svelte';
 	import AppSidebar from '#lib/components/app/AppSidebar.svelte';
 	import ServerSidebar from '#lib/components/app/ServerSidebar.svelte';
+	import UploadProgress from '#lib/components/app/UploadProgress.svelte';
 	import PanelPromptHost from '#lib/panel/PanelPromptHost.svelte';
 	import { feedback } from '#lib/panel/feedback.svelte.ts';
 	import type { PanelBlueprint } from '#lib/adapter/sdk.ts';
@@ -72,6 +73,8 @@
 		</main>
 	</Sidebar.Inset>
 </Sidebar.Provider>
+
+<UploadProgress />
 
 {#if feedback.message}
 	<div

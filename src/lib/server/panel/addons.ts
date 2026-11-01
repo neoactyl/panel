@@ -22,6 +22,18 @@ export type AddonHit = {
 
 export type AddonLoader = 'paper' | 'spigot' | 'purpur' | 'fabric' | 'forge' | 'neoforge' | 'quilt' | 'any';
 
+export type AddonVersion = {
+	id: string;
+	name: string;
+	gameVersions: string[];
+	loaders: string[];
+	published: string;
+	downloads: number;
+	filename: string | null;
+	url: string | null;
+	channel: string;
+};
+
 const MODRINTH = 'https://api.modrinth.com/v2';
 const CURSEFORGE = 'https://api.curseforge.com/v1';
 const USER_AGENT = 'Neoactyl/1.0 (addon-installer)';
@@ -95,10 +107,42 @@ export const searchModrinth = async (
 	}));
 };
 
-export const resolveModrinthDownload = async (
+type ModrinthVersion = {
+	id: string;
+	version_number?: string;
+	name?: string;
+	version_type?: string;
+	date_published?: string;
+	downloads?: number;
+	game_versions?: string[];
+	loaders?: string[];
+	files?: Array<{ url?: string; filename?: string; primary?: boolean }>;
+};
+
+const versionFile = (version: ModrinthVersion) =>
+	version.files?.find((entry) => entry.primary && entry.url) ??
+	version.files?.find((entry) => entry.url);
+
+const toAddonVersion = (version: ModrinthVersion): AddonVersion => {
+	const file = versionFile(version);
+
+	return {
+		id: version.id,
+		name: version.version_number || version.name || version.id,
+		gameVersions: version.game_versions ?? [],
+		loaders: version.loaders ?? [],
+		published: version.date_published ?? '',
+		downloads: version.downloads ?? 0,
+		filename: file?.filename ? sanitizeFilename(file.filename) : null,
+		url: file?.url ?? null,
+		channel: version.version_type ?? 'release'
+	};
+};
+
+export const listModrinthVersions = async (
 	projectId: string,
 	loader: AddonLoader = 'any'
-): Promise<{ url: string; filename: string; version: string }> => {
+): Promise<AddonVersion[]> => {
 	const params = new URLSearchParams();
 
 	if (loader !== 'any') {
@@ -113,15 +157,48 @@ export const resolveModrinthDownload = async (
 
 	if (!response.ok) throw new Error(`Modrinth versions failed (${response.status}).`);
 
-	const versions = (await response.json()) as Array<{
-		version_number?: string;
-		files?: Array<{ url?: string; filename?: string; primary?: boolean }>;
-	}>;
+	return ((await response.json()) as ModrinthVersion[]).map(toAddonVersion);
+};
 
-	const version = versions.find((entry) => entry.files?.some((file) => file.primary && file.url)) ?? versions[0];
-	const file =
-		version?.files?.find((entry) => entry.primary && entry.url) ??
-		version?.files?.find((entry) => entry.url);
+export const resolveModrinthDownload = async (
+	projectId: string,
+	loader: AddonLoader = 'any',
+	versionId?: string
+): Promise<{ url: string; filename: string; version: string }> => {
+	let version: ModrinthVersion | undefined;
+
+	if (versionId) {
+		const response = await fetchWithTimeout(
+			`${MODRINTH}/version/${encodeURIComponent(versionId)}`,
+			{ headers: { 'User-Agent': USER_AGENT } },
+			10_000
+		);
+
+		if (!response.ok) throw new Error(`Modrinth version lookup failed (${response.status}).`);
+
+		version = (await response.json()) as ModrinthVersion;
+	} else {
+		const params = new URLSearchParams();
+
+		if (loader !== 'any') {
+			params.set('loaders', JSON.stringify([loader === 'purpur' ? 'paper' : loader]));
+		}
+
+		const response = await fetchWithTimeout(
+			`${MODRINTH}/project/${encodeURIComponent(projectId)}/version?${params}`,
+			{ headers: { 'User-Agent': USER_AGENT } },
+			10_000
+		);
+
+		if (!response.ok) throw new Error(`Modrinth versions failed (${response.status}).`);
+
+		const versions = (await response.json()) as ModrinthVersion[];
+		version =
+			versions.find((entry) => entry.files?.some((file) => file.primary && file.url)) ??
+			versions[0];
+	}
+
+	const file = version ? versionFile(version) : undefined;
 
 	if (!version || !file?.url) {
 		throw new Error('No downloadable file was found for that project.');
@@ -130,7 +207,7 @@ export const resolveModrinthDownload = async (
 	return {
 		url: file.url,
 		filename: sanitizeFilename(file.filename ?? `${projectId}.jar`),
-		version: version.version_number ?? 'latest'
+		version: version.version_number ?? version.name ?? 'latest'
 	};
 };
 
@@ -188,6 +265,56 @@ export const searchCurseforge = async (query: string, limit = 20): Promise<Addon
 	});
 };
 
+export const listCurseforgeVersions = async (projectId: string): Promise<AddonVersion[]> => {
+	const key = getSetting('addons.curseforgeKey').trim();
+	if (!key) return [];
+
+	const response = await fetchWithTimeout(
+		`${CURSEFORGE}/mods/${encodeURIComponent(projectId)}/files?pageSize=50`,
+		{ headers: { 'x-api-key': key, Accept: 'application/json' } },
+		10_000
+	);
+
+	if (!response.ok) throw new Error(`CurseForge versions failed (${response.status}).`);
+
+	const body = (await response.json()) as {
+		data?: Array<{
+			id?: number;
+			displayName?: string;
+			fileName?: string;
+			fileDate?: string;
+			fileLength?: number;
+			downloadCount?: number;
+			downloadUrl?: string | null;
+			gameVersions?: string[];
+			releaseType?: number;
+		}>;
+	};
+
+	const channels = ['release', 'beta', 'alpha'];
+
+	return (body.data ?? []).map((file) => ({
+		id: String(file.id ?? ''),
+		name: file.displayName || file.fileName || String(file.id ?? ''),
+		gameVersions: (file.gameVersions ?? []).filter((entry) => /^\d/.test(entry)),
+		loaders: (file.gameVersions ?? []).filter((entry) => !/^\d/.test(entry)),
+		published: file.fileDate ?? '',
+		downloads: file.downloadCount ?? 0,
+		filename: file.fileName ? sanitizeFilename(file.fileName) : null,
+		url: file.downloadUrl ?? null,
+		channel: channels[file.releaseType ?? 0] ?? 'release'
+	}));
+};
+
+export const listAddonVersions = async (
+	source: AddonSource,
+	projectId: string,
+	loader: AddonLoader = 'any'
+): Promise<AddonVersion[]> =>
+	source === 'modrinth'
+		? listModrinthVersions(projectId, loader)
+		: listCurseforgeVersions(projectId);
+
 export const searchAddons = async (
 	query: string,
 	loader: AddonLoader,
@@ -218,14 +345,43 @@ export const searchAddons = async (
 export const installAddon = async (
 	adapter: Adapter,
 	serverId: string,
-	input: { source: AddonSource; projectId: string; loader: AddonLoader; directory: string; url?: string; filename?: string }
+	input: {
+		source: AddonSource;
+		projectId: string;
+		loader: AddonLoader;
+		directory: string;
+		versionId?: string;
+		url?: string;
+		filename?: string;
+	}
 ): Promise<FileEntry> => {
 	if (input.source === 'modrinth') {
-		const file = await resolveModrinthDownload(input.projectId, input.loader);
+		const file = await resolveModrinthDownload(input.projectId, input.loader, input.versionId);
 		return adapter.downloadToServer(serverId, input.directory, file.filename, file.url);
 	}
 
-	if (!input.url) {
+	let selectedUrl = input.url;
+	let selectedFilename = input.filename;
+
+	if (input.versionId) {
+		const versions = await listCurseforgeVersions(input.projectId);
+		const version = versions.find((entry) => entry.id === input.versionId);
+
+		if (!version) {
+			throw new Error('The selected CurseForge version is no longer available.');
+		}
+
+		selectedUrl = version.url ?? undefined;
+		selectedFilename = version.filename ?? selectedFilename;
+
+		if (!selectedUrl) {
+			throw new Error(
+				'CurseForge did not provide a direct download URL for that version. Upload the file manually or use Modrinth.'
+			);
+		}
+	}
+
+	if (!selectedUrl) {
 		throw new Error(
 			'CurseForge did not provide a direct download URL. Upload the file manually or use Modrinth.'
 		);
@@ -233,7 +389,7 @@ export const installAddon = async (
 
 	let parsed: URL;
 	try {
-		parsed = new URL(input.url);
+		parsed = new URL(selectedUrl);
 	} catch {
 		throw new Error('The addon download URL is invalid.');
 	}
@@ -245,7 +401,7 @@ export const installAddon = async (
 	return adapter.downloadToServer(
 		serverId,
 		input.directory,
-		sanitizeFilename(input.filename ?? `${input.projectId}.jar`),
+		sanitizeFilename(selectedFilename ?? `${input.projectId}.jar`),
 		parsed.toString()
 	);
 };

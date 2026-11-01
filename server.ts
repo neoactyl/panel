@@ -1,6 +1,11 @@
 import process from 'node:process';
 import { attachAfkWhenListening } from './src/lib/server/afk/attach.ts';
 
+// adapter-node rejects request bodies above 512 KB by default. File manager
+// uploads stream through `/api/servers/[id]/files/upload`, so raise the limit
+// unless the operator has configured one explicitly.
+process.env.BODY_SIZE_LIMIT ??= '512M';
+
 /**
  * Production entry point.
  *

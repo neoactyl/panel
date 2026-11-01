@@ -11,6 +11,7 @@ import {
   type CreateBackup,
   type CreateDatabase,
   type CreateServer,
+  type CreateSubuser,
   type Database,
   type FileEntry,
   type Node,
@@ -19,15 +20,18 @@ import {
   type PanelErrorCode,
   type PanelPrompt,
   type PanelScope,
+  type PermissionGroup,
   type ResourceUsage,
   type Server,
   type Software,
   type SoftwareGroup,
   type SoftwareVariable,
   type Startup,
+  type Subuser,
   type UpdateServer,
   type UpdateNode,
   type UpdateStartup,
+  type UpdateSubuser,
   type UploadFile,
   type User,
   type WebsocketCredentials,
@@ -73,7 +77,31 @@ type CalagopusServer = {
   image?: string | null;
   startup?: string | null;
   allocation?: { ip?: string; port?: number } | null;
+  ignored_files?: string[] | null;
+  subuser_ignored_files?: string[] | null;
+  permissions?: string[];
 };
+
+type CalagopusSubuser = {
+  user: {
+    uuid: string;
+    username: string;
+    email?: string | null;
+    avatar?: string | null;
+    created?: string;
+  };
+  permissions: string[];
+  ignored_files?: string[];
+  created: string;
+};
+
+type CalagopusPermissionMap = Record<
+  string,
+  {
+    description?: string;
+    permissions?: Record<string, string>;
+  }
+>;
 
 type CalagopusNest = {
   uuid: string;
@@ -232,7 +260,7 @@ export class Calagopus extends Adapter {
     databases: true,
     schedules: false,
     startup: true,
-    subusers: false,
+    subusers: true,
     activities: false,
     resources: true,
     accounts: { link: true, create: true, delete: true },
@@ -734,22 +762,27 @@ export class Calagopus extends Adapter {
     return { node };
   }
 
-  async #allocationForNode(nodeUuid: string): Promise<CalagopusAllocation> {
+  async #allocationsForNode(
+    nodeUuid: string,
+    count: number,
+  ): Promise<CalagopusAllocation[]> {
     const allocations = await this.#list<CalagopusAllocation>(
       `/api/admin/nodes/${nodeUuid}/allocations/available`,
       "allocations",
     );
 
-    if (allocations.length === 0) {
-      throw new AdapterError("No available allocations", "NOT_FOUND");
+    const requested = Math.max(1, count);
+
+    if (allocations.length < requested) {
+      throw new AdapterError(
+        allocations.length === 0
+          ? "No available allocations on this node"
+          : `This node only has ${allocations.length} free allocation${allocations.length === 1 ? "" : "s"}, but ${requested} were requested`,
+        "NOT_FOUND",
+      );
     }
 
-    const allocation = allocations[0];
-    if (!allocation) {
-      throw new AdapterError("No available allocations", "NOT_FOUND");
-    }
-
-    return allocation;
+    return allocations.slice(0, requested);
   }
 
   async createServer(input: CreateServer): Promise<Server> {
@@ -786,12 +819,18 @@ export class Calagopus extends Adapter {
         "VALIDATION",
       );
     }
-    const [allocation, variables] = await Promise.all([
-      this.#allocationForNode(node.id),
+    const extraAllocations = Math.max(0, Math.floor(input.allocations ?? 0));
+    const [allocations, variables] = await Promise.all([
+      this.#allocationsForNode(node.id, 1 + extraAllocations),
       this.getSoftwareVariables(input.software, input.softwareGroup).catch(
         () => [] as SoftwareVariable[],
       ),
     ]);
+    const [primaryAllocation, ...additionalAllocations] = allocations;
+
+    if (!primaryAllocation) {
+      throw new AdapterError("No available allocations on this node", "NOT_FOUND");
+    }
     const variableValues = new Map(
       variables.map((variable) => [
         variable.key,
@@ -807,7 +846,10 @@ export class Calagopus extends Adapter {
       node_uuid: node.id,
       owner_uuid: owner.id,
       egg_uuid: target.egg.uuid,
-      allocation_uuids: [allocation.uuid],
+      // Calagopus only treats `allocation_uuid` as the primary allocation;
+      // `allocation_uuids` are extra ports attached to the server.
+      allocation_uuid: primaryAllocation.uuid,
+      allocation_uuids: additionalAllocations.map((entry) => entry.uuid),
       start_on_completion: true,
       skip_installer: false,
       name: input.name,
@@ -829,7 +871,7 @@ export class Calagopus extends Adapter {
         disk,
       },
       feature_limits: {
-        allocations: 1 + Math.max(0, Math.floor(input.allocations ?? 0)),
+        allocations: 1 + extraAllocations,
         databases:
           input.databases === undefined
             ? 1
@@ -1393,48 +1435,22 @@ export class Calagopus extends Adapter {
       );
     }
 
-    const path = `${directory.replace(/\/+$/, "")}/${filename}`;
-    const target = new URL(
-      `/api/client/servers/${id}/files/write?file=${encodeURIComponent(this.#panelPath(path))}`,
-      this.url,
-    );
+    // Use the multipart upload endpoint instead of `files/write`. The write
+    // endpoint is limited by the panel's text editor size and can truncate
+    // binary jars, which produced corrupted addon downloads.
+    const [entry] = await this.uploadFiles(id, directory, [
+      {
+        name: filename,
+        size: body.byteLength,
+        content: new Uint8Array(body),
+      },
+    ]);
 
-    let write: Response;
-    try {
-      write = await fetchWithTimeout(
-        target,
-        {
-          method: "POST",
-          body,
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            "Content-Type": "application/octet-stream",
-          },
-        },
-        120_000,
-      );
-    } catch {
-      throw new AdapterError(
-        "Unable to write the addon to the server",
-        "NETWORK",
-      );
+    if (!entry) {
+      throw new AdapterError("The addon could not be written to the server");
     }
 
-    if (!write.ok) {
-      throw new AdapterError(
-        `The panel rejected the addon upload (${write.status})`,
-        errorForStatus(write.status),
-        write.status,
-      );
-    }
-
-    return {
-      name: filename,
-      type: "file",
-      size: body.byteLength,
-      modified: new Date().toISOString(),
-      actions: ["edit", "download", "delete"],
-    };
+    return entry;
   }
 
   override async listBackups(id: string): Promise<Backup[]> {
@@ -1628,6 +1644,105 @@ export class Calagopus extends Adapter {
     );
     this.#cache.delete(`allocations:${id}`);
     return this.listAllocations(id);
+  }
+
+  #toSubuser(raw: CalagopusSubuser): Subuser {
+    return {
+      id: raw.user.uuid,
+      username: raw.user.username,
+      email: raw.user.email ?? "",
+      permissions: raw.permissions ?? [],
+      addedAt: raw.created,
+      actions: ["update", "delete"],
+    };
+  }
+
+  override async listSubusers(id: string): Promise<Subuser[]> {
+    const raw = await this.#list<CalagopusSubuser>(
+      `/api/client/servers/${id}/subusers`,
+      "subusers",
+    );
+
+    return raw.map((subuser) => this.#toSubuser(subuser));
+  }
+
+  override async createSubuser(
+    id: string,
+    input: CreateSubuser,
+  ): Promise<Subuser> {
+    const current = await this.request<{ server: CalagopusServer }>(
+      `/api/client/servers/${id}`,
+    );
+
+    const response = (await (
+      await this.#jsonRequest(`/api/client/servers/${id}/subusers`, "POST", {
+        email: input.email,
+        permissions: input.permissions ?? [],
+        // Calagopus requires a subuser's ignored files to be at least as
+        // restrictive as the server's own ignored file list.
+        ignored_files: current.server.subuser_ignored_files ?? [],
+        captcha: null,
+      })
+    ).json()) as { subuser: CalagopusSubuser };
+
+    return this.#toSubuser(response.subuser);
+  }
+
+  override async updateSubuser(
+    id: string,
+    subuserId: string,
+    input: UpdateSubuser,
+  ): Promise<Subuser> {
+    await this.#jsonRequest(
+      `/api/client/servers/${id}/subusers/${subuserId}`,
+      "PATCH",
+      { permissions: input.permissions },
+    );
+
+    const subusers = await this.listSubusers(id);
+    const updated = subusers.find((subuser) => subuser.id === subuserId);
+
+    if (!updated) {
+      throw new AdapterError("Subuser was not found", "NOT_FOUND");
+    }
+
+    return updated;
+  }
+
+  override async deleteSubuser(
+    id: string,
+    subuserId: string,
+  ): Promise<void> {
+    await this.#jsonRequest(
+      `/api/client/servers/${id}/subusers/${subuserId}`,
+      "DELETE",
+      undefined,
+    );
+  }
+
+  override async listPermissionGroups(): Promise<PermissionGroup[]> {
+    return this.#cached(
+      "permission-groups",
+      Calagopus.METADATA_TTL,
+      async () => {
+        const response = await this.request<{
+          server_permissions?: CalagopusPermissionMap;
+        }>("/api/client/permissions");
+
+        return Object.entries(response.server_permissions ?? {}).map(
+          ([key, group]) => ({
+            key,
+            description: group.description ?? "",
+            permissions: Object.entries(group.permissions ?? {}).map(
+              ([permission, description]) => ({
+                key: `${key}.${permission}`,
+                description,
+              }),
+            ),
+          }),
+        );
+      },
+    );
   }
 
   override async deleteUser(userId: string): Promise<void> {

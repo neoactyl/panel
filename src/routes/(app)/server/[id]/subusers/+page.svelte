@@ -18,14 +18,54 @@
 	let inviteOpen = $state(false);
 	let inviting = $state(false);
 	let inviteError = $state('');
+	let invitePermissions = $state<string[]>([]);
+	let invitePermissionText = $state('');
 	let editing = $state<Subuser | null>(null);
-	let permissions = $state('');
+	let editPermissions = $state<string[]>([]);
+	let editPermissionText = $state('');
 	let updating = $state(false);
 	let updateError = $state('');
+
+	const hasPermissionList = $derived(data.permissionGroups.length > 0);
+
+	const splitPermissions = (value: string) =>
+		value
+			.split(',')
+			.map((permission) => permission.trim())
+			.filter(Boolean);
+
+	const selectedPermissions = (target: 'invite' | 'edit') =>
+		target === 'invite' ? invitePermissions : editPermissions;
+
+	const isPermissionSelected = (key: string, target: 'invite' | 'edit') =>
+		selectedPermissions(target).includes(key);
+
+	const togglePermission = (key: string, target: 'invite' | 'edit') => {
+		const current = selectedPermissions(target);
+		const next = current.includes(key)
+			? current.filter((permission) => permission !== key)
+			: [...current, key];
+
+		if (target === 'invite') invitePermissions = next;
+		else editPermissions = next;
+	};
+
+	const setAllPermissions = (target: 'invite' | 'edit', select: boolean) => {
+		const next = select
+			? data.permissionGroups.flatMap((group) =>
+					group.permissions.map((permission) => permission.key)
+				)
+			: [];
+
+		if (target === 'invite') invitePermissions = next;
+		else editPermissions = next;
+	};
 
 	const openInvite = () => {
 		email = '';
 		inviteError = '';
+		invitePermissions = [];
+		invitePermissionText = '';
 		inviteOpen = true;
 	};
 
@@ -38,7 +78,12 @@
 		inviteError = '';
 
 		try {
-			const subuser = await adapter.createSubuser(panel.server.id, { email: value });
+			const subuser = await adapter.createSubuser(panel.server.id, {
+				email: value,
+				permissions: hasPermissionList
+					? invitePermissions
+					: splitPermissions(invitePermissionText)
+			});
 			subusers = [...subusers, subuser];
 			inviteOpen = false;
 			panel.showNotice(`Invited ${value}.`);
@@ -51,7 +96,8 @@
 
 	const openPermissions = (subuser: Subuser) => {
 		editing = subuser;
-		permissions = subuser.permissions.join(', ');
+		editPermissions = [...subuser.permissions];
+		editPermissionText = subuser.permissions.join(', ');
 		updateError = '';
 	};
 
@@ -64,10 +110,9 @@
 
 		try {
 			const updated = await adapter.updateSubuser(panel.server.id, editing.id, {
-				permissions: permissions
-					.split(',')
-					.map((permission) => permission.trim())
-					.filter(Boolean)
+				permissions: hasPermissionList
+					? editPermissions
+					: splitPermissions(editPermissionText)
 			});
 			subusers = subusers.map((entry) => (entry.id === updated.id ? updated : entry));
 			editing = null;
@@ -94,6 +139,89 @@
 	const formatDate = (value: string) =>
 		new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 </script>
+
+{#snippet permissionPicker(target: 'invite' | 'edit')}
+	<div class="space-y-2">
+		<div class="flex items-center justify-between">
+			<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
+				Permissions
+			</span>
+			{#if hasPermissionList}
+				<div class="flex items-center gap-2 text-[11px]">
+					<button
+						type="button"
+						onclick={() => setAllPermissions(target, true)}
+						class="text-white/40 transition hover:text-white"
+					>
+						Select all
+					</button>
+					<span class="text-white/15">·</span>
+					<button
+						type="button"
+						onclick={() => setAllPermissions(target, false)}
+						class="text-white/40 transition hover:text-white"
+					>
+						Clear
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		{#if hasPermissionList}
+			<div class="max-h-64 space-y-3 overflow-y-auto border border-white/10 bg-[#121212] p-3">
+				{#each data.permissionGroups as group (group.key)}
+					<div>
+						<p class="font-mono text-[10px] font-semibold tracking-wider text-indigo-300/70 uppercase">
+							{group.key}
+						</p>
+						{#if group.description}
+							<p class="mt-0.5 text-[11px] text-white/30">{group.description}</p>
+						{/if}
+						<div class="mt-1 space-y-1">
+							{#each group.permissions as permission (permission.key)}
+								<label class="flex cursor-pointer items-start gap-2 text-xs text-white/70">
+									<input
+										type="checkbox"
+										checked={isPermissionSelected(permission.key, target)}
+										onchange={() => togglePermission(permission.key, target)}
+										class="mt-0.5 accent-indigo-500"
+									/>
+									<span class="min-w-0">
+										<span class="font-mono text-[11px] text-white/70">{permission.key}</span>
+										<span class="block text-[11px] text-white/35">{permission.description}</span>
+									</span>
+								</label>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
+			<p class="text-[11px] text-white/30">
+				{selectedPermissions(target).length} permission{selectedPermissions(target).length === 1
+					? ''
+					: 's'} selected
+			</p>
+		{:else if target === 'invite'}
+			<input
+				bind:value={invitePermissionText}
+				placeholder="control.start, control.stop"
+				class="w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+			/>
+			<span class="block text-[11px] text-white/30">
+				This panel does not expose a permission list. Enter comma separated permissions.
+			</span>
+		{:else}
+			<input
+				bind:value={editPermissionText}
+				placeholder="control.start, control.stop"
+				class="w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+			/>
+			<span class="block text-[11px] text-white/30">
+				This panel does not expose a permission list. Enter comma separated permissions.
+			</span>
+		{/if}
+	</div>
+{/snippet}
 
 <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
 	<div>
@@ -131,6 +259,7 @@
 				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
 			/>
 		</label>
+		{@render permissionPicker('invite')}
 		{#if inviteError}
 			<p class="border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
 				{inviteError}
@@ -167,17 +296,7 @@
 	}}
 >
 	<form id="update-subuser" onsubmit={updateSubuser} class="space-y-3">
-		<label class="block">
-			<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
-				Permissions
-			</span>
-			<input
-				bind:value={permissions}
-				placeholder="control.start, control.stop"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
-			/>
-			<span class="mt-1 block text-[11px] text-white/30">Comma separated permissions.</span>
-		</label>
+		{@render permissionPicker('edit')}
 		{#if updateError}
 			<p class="border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
 				{updateError}
@@ -227,7 +346,9 @@
 							</span>
 							<div class="min-w-0">
 								<p class="truncate text-xs font-semibold text-white">{subuser.username}</p>
-								<p class="truncate text-[11px] text-white/40">{subuser.email}</p>
+								<p class="truncate text-[11px] text-white/40">
+									{subuser.email || 'Panel account'}
+								</p>
 							</div>
 						</div>
 					</td>

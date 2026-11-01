@@ -3,25 +3,154 @@
 	import IconSearch from '@tabler/icons-svelte/icons/search';
 	import IconDownload from '@tabler/icons-svelte/icons/download';
 	import IconPackage from '@tabler/icons-svelte/icons/package';
+	import Modal from '#lib/components/app/Modal.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	let busy = $state('');
+	let installError = $state('');
+
+	let versionOpen = $state(false);
+	let versionLoading = $state(false);
+	let versionError = $state('');
+	let versionRequest = 0;
+	let versions = $state<AddonVersion[]>([]);
+	let selectedVersionId = $state('');
+	let target = $state<{
+		source: string;
+		projectId: string;
+		title: string;
+		downloadUrl?: string | null;
+		filename?: string;
+	} | null>(null);
+
+	type AddonVersion = {
+		id: string;
+		name: string;
+		gameVersions: string[];
+		loaders: string[];
+		published: string;
+		downloads: number;
+		filename: string | null;
+		url: string | null;
+		channel: string;
+	};
 
 	const loaders = ['paper', 'spigot', 'purpur', 'fabric', 'forge', 'neoforge', 'quilt', 'any'];
 
-	const install = (args: {
+	const selectedVersion = $derived(
+		versions.find((version) => version.id === selectedVersionId) ?? null
+	);
+
+	const versionLabel = (version: AddonVersion) => {
+		const parts = [version.name];
+		if (version.gameVersions.length > 0) parts.push(version.gameVersions.slice(0, 2).join(', '));
+		if (version.channel !== 'release') parts.push(version.channel);
+		return parts.join(' · ');
+	};
+
+	const openVersions = async (result: {
 		source: string;
-		projectId: string;
-		url?: string | null;
+		id: string;
+		title: string;
+		downloadUrl?: string | null;
 		filename?: string;
 	}) => {
+		target = {
+			source: result.source,
+			projectId: result.id,
+			title: result.title,
+			downloadUrl: result.downloadUrl,
+			filename: result.filename
+		};
+		versionOpen = true;
+		versionLoading = true;
+		versionError = '';
+		installError = '';
+		versions = [];
+		selectedVersionId = '';
+
+		const requestId = ++versionRequest;
+		const params = new URLSearchParams({
+			source: result.source,
+			projectId: result.id,
+			loader: data.loader
+		});
+
+		try {
+			const response = await fetch(`/api/addons/versions?${params}`);
+			const body = (await response.json().catch(() => null)) as
+				| { versions?: AddonVersion[]; message?: string }
+				| null;
+
+			if (requestId !== versionRequest) return;
+
+			if (!response.ok) {
+				throw new Error(body?.message ?? `Could not load versions (${response.status}).`);
+			}
+
+			versions = body?.versions ?? [];
+
+			if (versions.length === 0) {
+				versionError = 'No downloadable versions were found for this project.';
+				return;
+			}
+
+			const preferred =
+				versions.find((version) => version.channel === 'release' && version.url) ??
+				versions.find((version) => version.url) ??
+				versions[0];
+
+			selectedVersionId = preferred?.id ?? '';
+		} catch (cause) {
+			if (requestId !== versionRequest) return;
+			versionError = cause instanceof Error ? cause.message : 'Could not load versions.';
+		} finally {
+			if (requestId === versionRequest) versionLoading = false;
+		}
+	};
+
+	const closeVersions = () => {
+		if (busy) return;
+		versionRequest += 1;
+		versionLoading = false;
+		versionOpen = false;
+		target = null;
+		versions = [];
+		selectedVersionId = '';
+		versionError = '';
+		installError = '';
+	};
+
+	const install = (source: string, projectId: string) => {
 		return () => {
-			busy = `${args.source}:${args.projectId}`;
-			return async ({ update }: { update: () => Promise<void> }) => {
+			busy = `${source}:${projectId}`;
+			installError = '';
+
+			return async ({
+				result,
+				update
+			}: {
+				result: { type: string; data?: unknown };
+				update: () => Promise<void>;
+			}) => {
 				await update();
 				busy = '';
+
+				if (result.type === 'success') {
+					versionOpen = false;
+					target = null;
+					return;
+				}
+
+				if (result.type === 'failure') {
+					installError =
+						(result.data as { error?: string } | null)?.error ??
+						'The addon could not be installed.';
+				} else if (result.type !== 'success') {
+					installError = 'The addon could not be installed. Try again.';
+				}
 			};
 		};
 	};
@@ -144,36 +273,132 @@
 						</div>
 					</div>
 
-					<form
-						method="POST"
-						action="?/install"
-						use:enhance={install({
-							source: result.source,
-							projectId: result.id
-						})}
-						class="shrink-0"
+					<button
+						type="button"
+						onclick={() => openVersions(result)}
+						disabled={busy === `${result.source}:${result.id}`}
+						class="flex shrink-0 items-center gap-2 border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-indigo-200 uppercase transition hover:bg-indigo-500/20 disabled:opacity-40"
 					>
-						<input type="hidden" name="source" value={result.source} />
-						<input type="hidden" name="projectId" value={result.id} />
-						<input type="hidden" name="loader" value={data.loader} />
-						<input type="hidden" name="directory" value={data.directory} />
-						{#if result.downloadUrl}
-							<input type="hidden" name="url" value={result.downloadUrl} />
-						{/if}
-						{#if result.filename}
-							<input type="hidden" name="filename" value={result.filename} />
-						{/if}
-						<button
-							type="submit"
-							disabled={busy === `${result.source}:${result.id}`}
-							class="flex items-center gap-2 border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-indigo-200 uppercase transition hover:bg-indigo-500/20 disabled:opacity-40"
-						>
-							<IconDownload class="size-3.5" />
-							{busy === `${result.source}:${result.id}` ? 'Installing...' : 'Install'}
-						</button>
-					</form>
+						<IconDownload class="size-3.5" />
+						{busy === `${result.source}:${result.id}` ? 'Installing...' : 'Install'}
+					</button>
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+<Modal
+	open={versionOpen}
+	title={target ? `Install ${target.title}` : 'Choose a version'}
+	description="Select the exact release to install into this server."
+	onclose={closeVersions}
+	size="lg"
+>
+	{#if target}
+		<form
+			id="install-addon"
+			method="POST"
+			action="?/install"
+			use:enhance={install(target.source, target.projectId)}
+			class="space-y-4"
+		>
+			<input type="hidden" name="source" value={target.source} />
+			<input type="hidden" name="projectId" value={target.projectId} />
+			<input type="hidden" name="loader" value={data.loader} />
+			<input type="hidden" name="directory" value={data.directory} />
+			{#if target.downloadUrl}
+				<input type="hidden" name="url" value={target.downloadUrl} />
+			{/if}
+			{#if target.filename}
+				<input type="hidden" name="filename" value={target.filename} />
+			{/if}
+
+			{#if versionLoading}
+				<p class="text-sm text-white/40">Loading versions...</p>
+			{:else if versions.length > 0}
+				<label class="block">
+					<span class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
+						Version
+					</span>
+					<select
+						name="versionId"
+						bind:value={selectedVersionId}
+						class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white focus:border-indigo-500/60 focus:outline-none"
+					>
+						{#each versions as version (version.id)}
+							<option value={version.id}>{versionLabel(version)}</option>
+						{/each}
+					</select>
+				</label>
+
+				{#if selectedVersion}
+					<div class="grid gap-2 border border-white/10 bg-black/20 p-3 text-xs text-white/50">
+						<div class="flex flex-wrap gap-x-6 gap-y-1">
+							<span>Channel: <span class="text-white/80">{selectedVersion.channel}</span></span>
+							{#if selectedVersion.gameVersions.length > 0}
+								<span>
+									Game versions:
+									<span class="text-white/80">{selectedVersion.gameVersions.join(', ')}</span>
+								</span>
+							{/if}
+						</div>
+						{#if selectedVersion.loaders.length > 0}
+							<span>
+								Loaders:
+								<span class="text-white/80">{selectedVersion.loaders.join(', ')}</span>
+							</span>
+						{/if}
+						{#if selectedVersion.filename}
+							<span class="truncate font-mono text-[11px] text-white/40">
+								{selectedVersion.filename}
+							</span>
+						{/if}
+						{#if selectedVersion && !selectedVersion.url}
+							<p class="border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-200">
+								This version does not provide a direct download. Pick another version.
+							</p>
+						{/if}
+					</div>
+				{/if}
+			{:else}
+				<p class="text-sm text-white/50">
+					{versionError ||
+						'The version list is unavailable. The latest compatible version will be installed.'}
+				</p>
+				<p class="text-xs text-white/30">
+					You can still install the latest version{target.source === 'curseforge' && !target.downloadUrl
+						? ', but this project requires a manual upload.'
+						: '.'}
+				</p>
+			{/if}
+
+			{#if installError}
+				<p class="border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+					{installError}
+				</p>
+			{/if}
+		</form>
+	{:else}
+		<p class="text-sm text-white/40">Loading...</p>
+	{/if}
+
+	{#snippet footer()}
+		<button
+			type="button"
+			onclick={closeVersions}
+			disabled={Boolean(busy)}
+			class="border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10 disabled:opacity-40"
+		>
+			Cancel
+		</button>
+		<button
+			type="submit"
+			form="install-addon"
+			disabled={Boolean(busy) || versionLoading || (selectedVersion !== null && !selectedVersion.url) || (target?.source === 'curseforge' && !target.downloadUrl && versions.length === 0)}
+			class="border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20 disabled:opacity-40"
+		>
+			{busy ? 'Installing...' : 'Install'}
+		</button>
+	{/snippet}
+</Modal>

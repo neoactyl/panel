@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import * as Breadcrumb from '#lib/components/ui/breadcrumb/index.js';
 	import * as CodeBlock from '#lib/components/ui/code-block/index.js';
@@ -31,6 +31,7 @@
 	import { adapter } from '#lib/adapter/client.ts';
 	import { FILES_ROOT } from '#lib/adapter/sdk.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
+	import { uploads } from '#lib/client/uploads.svelte.ts';
 	import { usageColor } from '#lib/client/usage-color.ts';
 	import type { FileAction, FileEntry } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
@@ -53,7 +54,6 @@
 	let editorLoading = $state(false);
 	let editorRequest = 0;
 	let uploadInput = $state<HTMLInputElement | null>(null);
-	let uploading = $state(false);
 	let folderOpen = $state(false);
 	let folderNameInput = $state('');
 	let folderError = $state('');
@@ -65,6 +65,27 @@
 		const entries = await adapter.listFiles(server.id, path);
 		tree = { ...tree, [path]: structuredClone(entries) };
 	};
+
+	onMount(() =>
+		uploads.onComplete(server.id, (item) => {
+			panel.showNotice(`Uploaded ${item.name}.`);
+
+			void (async () => {
+				try {
+					const entries = await adapter.listFiles(item.serverId, item.directory);
+					tree = { ...tree, [item.directory]: structuredClone(entries) };
+				} catch (cause) {
+					panel.showNotice(
+						cause instanceof Error ? cause.message : 'Could not refresh the file list.'
+					);
+				}
+			})();
+		})
+	);
+
+	const activeUploads = $derived(
+		uploads.items.filter((item) => item.status === 'uploading').length
+	);
 
 	const loadDirectory = async (directory: string) => {
 		const entries = await adapter.listFiles(server.id, directory);
@@ -420,36 +441,17 @@
 
 	const handleUpload = (event: Event) => {
 		const input = event.currentTarget as HTMLInputElement;
+		const files = Array.from(input.files ?? []);
+		input.value = '';
 
-		if (!input.files?.length) return;
+		if (files.length === 0) return;
 
-		input.form?.requestSubmit();
-	};
-
-	const upload: SubmitFunction = () => {
-		uploading = true;
-
-		return async ({ result }) => {
-			uploading = false;
-
-			if (uploadInput) uploadInput.value = '';
-
-			if (result.type === 'success') {
-				const uploaded = (result.data as { uploaded?: string[] } | null)?.uploaded ?? [];
-				await refresh();
-				panel.showNotice(
-					uploaded.length === 1
-						? `Uploaded ${uploaded[0]}.`
-						: `Uploaded ${uploaded.length} files.`
-				);
-				return;
-			}
-
-			if (result.type === 'failure') {
-				const error = (result.data as { error?: string } | null)?.error;
-				panel.showNotice(error ?? 'The files could not be uploaded.');
-			}
-		};
+		uploads.enqueue({
+			serverId: server.id,
+			serverName: server.name,
+			directory: path,
+			files
+		});
 	};
 
 	const openFolder = () => {
@@ -738,26 +740,21 @@
 				</button>
 			{/if}
 			{#if fileCapabilities.upload}
-				<form method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={upload}>
-					<input type="hidden" name="directory" value={path} />
-					<button
-						type="button"
-						onclick={() => uploadInput?.click()}
-						disabled={uploading}
-						class="flex items-center gap-1.5 border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10 disabled:opacity-40"
-					>
-						<IconUpload class="h-3.5 w-3.5" />
-						{uploading ? 'Uploading...' : 'Upload'}
-					</button>
-					<input
-						bind:this={uploadInput}
-						type="file"
-						name="files"
-						multiple
-						class="hidden"
-						onchange={handleUpload}
-					/>
-				</form>
+				<button
+					type="button"
+					onclick={() => uploadInput?.click()}
+					class="flex items-center gap-1.5 border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+				>
+					<IconUpload class="h-3.5 w-3.5" />
+					{activeUploads > 0 ? `Uploading ${activeUploads}` : 'Upload'}
+				</button>
+				<input
+					bind:this={uploadInput}
+					type="file"
+					multiple
+					class="hidden"
+					onchange={handleUpload}
+				/>
 			{/if}
 		</div>
 	</div>

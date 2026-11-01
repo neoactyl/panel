@@ -65,6 +65,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const source = String(data.get('source') ?? 'modrinth') as AddonSource;
 		const projectId = String(data.get('projectId') ?? '').trim();
+		const versionId = String(data.get('versionId') ?? '').trim() || undefined;
 		const loader = parseLoader(String(data.get('loader') ?? 'paper'));
 		const directory = String(data.get('directory') ?? '/plugins').trim() || '/plugins';
 		const url = String(data.get('url') ?? '').trim() || undefined;
@@ -83,6 +84,7 @@ export const actions: Actions = {
 				projectId,
 				loader,
 				directory,
+				versionId,
 				url,
 				filename
 			});

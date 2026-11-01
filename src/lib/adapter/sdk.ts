@@ -409,6 +409,17 @@ export type UpdateSubuser = {
   permissions: string[];
 };
 
+export type PermissionOption = {
+  key: string;
+  description: string;
+};
+
+export type PermissionGroup = {
+  key: string;
+  description: string;
+  permissions: PermissionOption[];
+};
+
 export type Activity = {
   id: string;
   actor: string;
@@ -698,6 +709,10 @@ export abstract class Adapter {
 
   async updateStartup(_id: string, _input: UpdateStartup): Promise<Startup> {
     this.unsupported("updateStartup");
+  }
+
+  async listPermissionGroups(): Promise<PermissionGroup[]> {
+    return [];
   }
 
   async listSubusers(_id: string): Promise<Subuser[]> {

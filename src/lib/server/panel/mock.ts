@@ -18,6 +18,7 @@ import type {
   PanelActionResult,
   PanelBlueprint,
   PanelScope,
+  PermissionGroup,
   ResourceUsage,
   Schedule,
   Server,
@@ -910,6 +911,54 @@ export class MockAdapter extends Adapter {
     }
 
     return clone(startup);
+  }
+
+  override async listPermissionGroups(): Promise<PermissionGroup[]> {
+    return [
+      {
+        key: "control",
+        description: "Power state and console access.",
+        permissions: [
+          { key: "control.read-console", description: "View the server console." },
+          { key: "control.console", description: "Send commands to the server." },
+          { key: "control.start", description: "Start the server." },
+          { key: "control.stop", description: "Stop the server." },
+          { key: "control.restart", description: "Restart the server." }
+        ]
+      },
+      {
+        key: "files",
+        description: "Manage the server filesystem.",
+        permissions: [
+          { key: "files.read", description: "View directories and download files." },
+          { key: "files.read-content", description: "Read file contents." },
+          { key: "files.create", description: "Create files and upload." },
+          { key: "files.update", description: "Edit existing files." },
+          { key: "files.delete", description: "Delete files." },
+          { key: "files.archive", description: "Compress and extract archives." }
+        ]
+      },
+      {
+        key: "backups",
+        description: "Manage server backups.",
+        permissions: [
+          { key: "backups.read", description: "View backups." },
+          { key: "backups.create", description: "Create backups." },
+          { key: "backups.delete", description: "Delete backups." },
+          { key: "backups.restore", description: "Restore backups." }
+        ]
+      },
+      {
+        key: "subusers",
+        description: "Manage other users with access to this server.",
+        permissions: [
+          { key: "subusers.read", description: "View subusers." },
+          { key: "subusers.create", description: "Invite subusers." },
+          { key: "subusers.update", description: "Edit subuser permissions." },
+          { key: "subusers.delete", description: "Remove subusers." }
+        ]
+      }
+    ];
   }
 
   override async listSubusers(id: string): Promise<Subuser[]> {
