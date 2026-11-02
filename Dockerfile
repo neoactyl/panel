@@ -27,6 +27,7 @@ RUN bun install --frozen-lockfile
 COPY --from=build /app/src ./src
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/server.ts ./server.ts
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
