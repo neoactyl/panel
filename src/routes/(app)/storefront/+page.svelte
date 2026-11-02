@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { formatMegabytes } from '#lib/format.ts';
 	import IconShoppingBag from '@tabler/icons-svelte/icons/shopping-bag';
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconLock from '@tabler/icons-svelte/icons/lock';
@@ -7,7 +8,6 @@
 
 	let { data, form }: PageProps = $props();
 
-	const gigabytes = (megabytes: number) => `${(megabytes / 1024).toFixed(1)} GB`;
 	const credits = (amount: number) => `${amount.toLocaleString()} ${data.renewal.currency}`;
 </script>
 
@@ -60,11 +60,11 @@
 	{#if data.quota && data.used && data.remaining}
 		<div class="border border-white/10 bg-[#1a1a1a] px-4 py-3 text-sm text-white/60">
 			Your allocation: {data.used.cpu} / {data.quota.cpu}% CPU -
-			{gigabytes(data.used.memory)} / {gigabytes(data.quota.memory)} memory -
-			{gigabytes(data.used.disk)} / {gigabytes(data.quota.disk)} disk
+			{formatMegabytes(data.used.memory)} / {formatMegabytes(data.quota.memory)} memory -
+			{formatMegabytes(data.used.disk)} / {formatMegabytes(data.quota.disk)} disk
 			<p class="mt-1 text-xs text-white/35">
-				Remaining: {data.remaining.cpu}% CPU - {gigabytes(data.remaining.memory)} memory -
-				{gigabytes(data.remaining.disk)} disk
+				Remaining: {data.remaining.cpu}% CPU - {formatMegabytes(data.remaining.memory)} memory -
+				{formatMegabytes(data.remaining.disk)} disk
 			</p>
 		</div>
 	{/if}
@@ -104,13 +104,13 @@
 						<div class="border border-white/5 bg-[#121212] px-2 py-2">
 							<p class="text-[9px] tracking-widest text-white/30 uppercase">RAM</p>
 							<p class="mt-0.5 text-xs font-semibold text-white">
-								{item.kind === 'resource' ? '+' : ''}{gigabytes(item.memory)}
+								{item.kind === 'resource' ? '+' : ''}{formatMegabytes(item.memory)}
 							</p>
 						</div>
 						<div class="border border-white/5 bg-[#121212] px-2 py-2">
 							<p class="text-[9px] tracking-widest text-white/30 uppercase">Disk</p>
 							<p class="mt-0.5 text-xs font-semibold text-white">
-								{item.kind === 'resource' ? '+' : ''}{gigabytes(item.disk)}
+								{item.kind === 'resource' ? '+' : ''}{formatMegabytes(item.disk)}
 							</p>
 						</div>
 					</div>

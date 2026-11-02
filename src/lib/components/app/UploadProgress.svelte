@@ -7,19 +7,13 @@
 	import IconChevronUp from '@tabler/icons-svelte/icons/chevron-up';
 	import IconChevronDown from '@tabler/icons-svelte/icons/chevron-down';
 	import { uploads, type UploadItem } from '#lib/client/uploads.svelte.ts';
+	import { formatBytes } from '#lib/format.ts';
 
 	let collapsed = $state(false);
 
 	const items = $derived(uploads.items);
 	const activeCount = $derived(uploads.activeCount);
 	const finishedCount = $derived(uploads.finishedCount);
-
-	const formatSize = (bytes: number) => {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-	};
 
 	const percent = (item: UploadItem) => {
 		if (item.status === 'done') return 100;
@@ -100,9 +94,9 @@
 
 							<span class="shrink-0 font-mono text-[10px] text-white/45">
 								{#if item.status === 'uploading'}
-									{formatSize(item.loaded)} / {formatSize(item.size)}
+									{formatBytes(item.loaded)} / {formatBytes(item.size)}
 								{:else if item.status === 'done'}
-									{formatSize(item.size)}
+									{formatBytes(item.size)}
 								{:else}
 									{item.status === 'canceled' ? 'Canceled' : 'Failed'}
 								{/if}

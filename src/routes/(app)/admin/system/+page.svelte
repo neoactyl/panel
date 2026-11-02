@@ -3,6 +3,7 @@
 	import IconActivity from '@tabler/icons-svelte/icons/activity';
 	import IconDatabase from '@tabler/icons-svelte/icons/database';
 	import IconRefresh from '@tabler/icons-svelte/icons/refresh';
+	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -12,22 +13,6 @@
 		{ id: 'reset' }
 	);
 
-	const bytes = (value: number) => {
-		const units = ['B', 'KB', 'MB', 'GB'];
-		let amount = value;
-		let unit = 0;
-		while (amount >= 1024 && unit < units.length - 1) {
-			amount /= 1024;
-			unit += 1;
-		}
-		return `${amount.toFixed(1)} ${units[unit]}`;
-	};
-
-	const duration = (value: number) => {
-		const hours = Math.floor(value / 3600);
-		const minutes = Math.floor((value % 3600) / 60);
-		return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-	};
 </script>
 
 <svelte:head>
@@ -90,7 +75,7 @@
 		<div class="border border-white/10 bg-[#1a1a1a] p-4">
 			<div class="text-[10px] tracking-widest text-white/40 uppercase">Uptime</div>
 			<div class="mt-2 text-2xl font-semibold text-white">
-				{duration(data.metrics.uptimeSeconds)}
+				{formatDuration(data.metrics.uptimeSeconds)}
 			</div>
 			<div class="mt-1 text-xs text-white/40">
 				Since {new Date(data.metrics.startedAt).toLocaleString()}
@@ -159,12 +144,12 @@
 			<div class="mt-3 grid grid-cols-2 gap-3 text-sm">
 				<div>
 					<div class="text-[10px] tracking-widest text-white/40 uppercase">RSS</div>
-					<div class="text-white">{bytes(data.runtime.rss)}</div>
+					<div class="text-white">{formatBytes(data.runtime.rss)}</div>
 				</div>
 				<div>
 					<div class="text-[10px] tracking-widest text-white/40 uppercase">Heap</div>
 					<div class="text-white">
-						{bytes(data.runtime.heapUsed)} / {bytes(data.runtime.heapTotal)}
+						{formatBytes(data.runtime.heapUsed)} / {formatBytes(data.runtime.heapTotal)}
 					</div>
 				</div>
 				<div>
@@ -181,7 +166,7 @@
 				</div>
 				<div>
 					<div class="text-[10px] tracking-widest text-white/40 uppercase">Process uptime</div>
-					<div class="text-white">{duration(data.runtime.processUptime)}</div>
+					<div class="text-white">{formatDuration(data.runtime.processUptime)}</div>
 				</div>
 			</div>
 		</div>

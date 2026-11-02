@@ -1,15 +1,11 @@
 <script lang="ts">
 	import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
 	import IconHistory from '@tabler/icons-svelte/icons/history';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { formatDateTime } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	const date = (value: Date | string | number) =>
-		new Intl.DateTimeFormat(undefined, {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		}).format(new Date(value));
 
 	const total = $derived(data.tab === 'errors' ? data.errorCount : data.activityCount);
 	const pages = $derived(Math.max(1, Math.ceil(total / data.perPage)));
@@ -57,27 +53,27 @@
 		</a>
 	</nav>
 
-	<div class="overflow-x-auto border border-white/10 bg-[#1a1a1a]">
+	<div class="border border-white/10 bg-[#1a1a1a]">
 		{#if data.tab === 'activity'}
 			{#if data.activity.length === 0}
 				<p class="px-4 py-10 text-center text-sm text-white/35">No activity recorded yet.</p>
 			{:else}
-				<table class="w-full min-w-[720px] text-left text-sm">
-					<thead>
-						<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-							<th class="px-3 py-2 font-semibold">When</th>
-							<th class="px-3 py-2 font-semibold">Action</th>
-							<th class="px-3 py-2 font-semibold">Message</th>
-							<th class="px-3 py-2 font-semibold">User</th>
-						</tr>
-					</thead>
-					<tbody>
+				<Table.Root class="w-full min-w-[720px] text-left text-sm">
+					<Table.Header>
+						<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+							<Table.Head class="px-3 py-2 font-semibold">When</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Action</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Message</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">User</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each data.activity as entry (entry.id)}
-							<tr class="border-b border-white/5 last:border-0">
-								<td class="whitespace-nowrap px-3 py-2 text-xs text-white/45">
-									{date(entry.createdAt)}
-								</td>
-								<td class="px-3 py-2">
+							<Table.Row class="border-b border-white/5 last:border-0">
+								<Table.Cell class="whitespace-nowrap px-3 py-2 text-xs text-white/45">
+									{formatDateTime(entry.createdAt)}
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<span
 										class="border px-2 py-0.5 font-mono text-[10px] uppercase
 											{entry.severity === 'error'
@@ -88,55 +84,55 @@
 									>
 										{entry.action}
 									</span>
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
 									{entry.message}
 									{#if entry.path}
 										<span class="ml-1 font-mono text-[10px] text-white/25">{entry.path}</span>
 									{/if}
-								</td>
-								<td class="px-3 py-2 font-mono text-[10px] text-white/35">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 font-mono text-[10px] text-white/35">
 									{entry.userId ?? 'system'}
-								</td>
-							</tr>
+								</Table.Cell>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			{/if}
 		{:else}
 			{#if data.errors.length === 0}
 				<p class="px-4 py-10 text-center text-sm text-white/35">No errors recorded yet.</p>
 			{:else}
-				<table class="w-full min-w-[720px] text-left text-sm">
-					<thead>
-						<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-							<th class="px-3 py-2 font-semibold">Last seen</th>
-							<th class="px-3 py-2 font-semibold">Count</th>
-							<th class="px-3 py-2 font-semibold">Reference</th>
-							<th class="px-3 py-2 font-semibold">Message</th>
-							<th class="px-3 py-2 font-semibold">Request</th>
-						</tr>
-					</thead>
-					<tbody>
+				<Table.Root class="w-full min-w-[720px] text-left text-sm">
+					<Table.Header>
+						<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+							<Table.Head class="px-3 py-2 font-semibold">Last seen</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Count</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Reference</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Message</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Request</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each data.errors as entry (entry.id)}
-							<tr class="border-b border-white/5 last:border-0 align-top">
-								<td class="whitespace-nowrap px-3 py-2 text-xs text-white/45">
-									{date(entry.lastSeen)}
+							<Table.Row class="border-b border-white/5 last:border-0 align-top">
+								<Table.Cell class="whitespace-nowrap px-3 py-2 text-xs text-white/45">
+									{formatDateTime(entry.lastSeen)}
 									<p class="mt-0.5 text-[10px] text-white/25">
-										first {date(entry.createdAt)}
+										first {formatDateTime(entry.createdAt)}
 									</p>
-								</td>
-								<td class="px-3 py-2">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<span
 										class="border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-mono text-[10px] text-red-300"
 									>
 										x{entry.count}
 									</span>
-								</td>
-								<td class="px-3 py-2 font-mono text-[10px] text-white/35">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 font-mono text-[10px] text-white/35">
 									{entry.reference}
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
 									<p>{entry.message}</p>
 									{#if entry.stack}
 										<details class="mt-1">
@@ -144,15 +140,15 @@
 											<pre class="mt-1 max-w-xl overflow-x-auto whitespace-pre-wrap text-[10px] text-white/30">{entry.stack}</pre>
 										</details>
 									{/if}
-								</td>
-								<td class="px-3 py-2 text-xs text-white/45">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/45">
 									<p class="font-mono text-[10px]">{entry.method ?? '—'} {entry.path ?? ''}</p>
 									<p class="mt-0.5 text-[10px] text-white/25">{entry.status}</p>
-								</td>
-							</tr>
+								</Table.Cell>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			{/if}
 		{/if}
 	</div>

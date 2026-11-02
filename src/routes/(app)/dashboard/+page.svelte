@@ -8,22 +8,12 @@
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconChevronRight from '@tabler/icons-svelte/icons/chevron-right';
 	import IconArrowRight from '@tabler/icons-svelte/icons/arrow-right';
-	import type { ServerState } from '#lib/adapter/sdk.ts';
+	import { SERVER_STATE_STYLES } from '#lib/status.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const user = $derived(data.user);
-
-	const STATE_STYLES: Record<ServerState, string> = {
-		running: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-		starting: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-		stopping: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-		installing: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
-		suspended: 'border-red-500/30 bg-red-500/10 text-red-300',
-		offline: 'border-white/10 bg-white/5 text-white/50',
-		unknown: 'border-white/10 bg-white/5 text-white/50'
-	};
 
 	const totals = $derived.by(() => {
 		let cpu = 0;
@@ -220,7 +210,7 @@
 							</div>
 							<div class="flex shrink-0 items-center gap-3">
 								<span
-									class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {STATE_STYLES[
+									class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {SERVER_STATE_STYLES[
 										server.state
 									]}"
 								>

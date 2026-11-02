@@ -2,6 +2,7 @@
 	import { adapter } from '#lib/adapter/client.ts';
 	import { page as currentPage } from '$app/state';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
 	import type { PanelPage, PanelScope } from '#lib/adapter/sdk.ts';
 	import BlueprintForm from './BlueprintForm.svelte';
 	import { feedback } from './feedback.svelte.ts';
@@ -96,27 +97,27 @@
 				{/each}
 			</section>
 		{:else if block.type === 'table'}
-			<section class="overflow-x-auto border border-white/10 bg-[#1a1a1a]">
-				<table class="w-full text-left text-sm">
-					<thead>
-						<tr class="border-b border-white/10">
+			<section class="border border-white/10 bg-[#1a1a1a]">
+				<Table.Root class="w-full text-left text-sm">
+					<Table.Header>
+						<Table.Row class="border-b border-white/10 hover:bg-transparent">
 							{#each block.columns as column (column)}
-								<th class="px-4 py-2 text-[10px] font-semibold tracking-widest text-white/35 uppercase">
+								<Table.Head class="px-4 py-2 text-[10px] font-semibold tracking-widest text-white/35 uppercase">
 									{column}
-								</th>
+								</Table.Head>
 							{/each}
-						</tr>
-					</thead>
-					<tbody>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each block.rows as row, rowIndex (rowIndex)}
-							<tr class="border-b border-white/5 last:border-0">
+							<Table.Row class="border-b border-white/5 last:border-0">
 								{#each row as cell, cellIndex (cellIndex)}
-									<td class="px-4 py-2 font-mono text-xs text-white/60">{cell}</td>
+									<Table.Cell class="px-4 py-2 font-mono text-xs text-white/60">{cell}</Table.Cell>
 								{/each}
-							</tr>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			</section>
 		{:else if block.type === 'actions'}
 			<section class="flex flex-wrap gap-2 border border-white/10 bg-[#1a1a1a] p-4">

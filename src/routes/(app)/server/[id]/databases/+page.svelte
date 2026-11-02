@@ -5,6 +5,8 @@
 	import { adapter } from '#lib/adapter/client.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { monoInputClass } from '#lib/styles.ts';
 	import Modal from '#lib/components/app/Modal.svelte';
 	import type { Database } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
@@ -91,7 +93,7 @@
 			<input
 				bind:value={newDatabase}
 				placeholder="database_name"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {monoInputClass}"
 			/>
 		</label>
 		{#if createError}
@@ -122,24 +124,24 @@
 </Modal>
 
 <section class="border border-white/10 bg-[#1a1a1a]">
-	<table class="w-full text-left text-sm">
-		<thead>
-			<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-				<th class="px-4 py-2 font-semibold">Database</th>
-				<th class="px-4 py-2 font-semibold">Host</th>
-				<th class="px-4 py-2 font-semibold">Username</th>
-				<th class="px-4 py-2"></th>
-			</tr>
-		</thead>
-		<tbody>
+	<Table.Root class="w-full text-left text-sm">
+		<Table.Header>
+			<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
+				<Table.Head class="px-4 py-2 font-semibold">Database</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Host</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Username</Table.Head>
+				<Table.Head class="px-4 py-2"></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
 			{#each databases as database (database.id)}
-				<tr class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-					<td class="px-4 py-2.5 font-mono text-xs text-white/80">{database.name}</td>
-					<td class="px-4 py-2.5 font-mono text-xs text-white/40">
+				<Table.Row class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/80">{database.name}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/40">
 						{database.host}:{database.port}
-					</td>
-					<td class="px-4 py-2.5 font-mono text-xs text-white/40">{database.username}</td>
-					<td class="px-4 py-2.5 text-right">
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/40">{database.username}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 text-right">
 						{#each database.actions ?? [] as action (action)}
 							{#if action === 'delete'}
 								<button
@@ -152,16 +154,16 @@
 								</button>
 							{/if}
 						{/each}
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/each}
 			{#if !databases.length}
-				<tr>
-					<td colspan="4" class="px-4 py-8 text-center text-xs text-white/40">
+				<Table.Row>
+					<Table.Cell colspan={4} class="px-4 py-8 text-center text-xs text-white/40">
 						No databases yet.
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/if}
-		</tbody>
-	</table>
+		</Table.Body>
+	</Table.Root>
 </section>

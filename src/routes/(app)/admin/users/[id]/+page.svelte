@@ -2,6 +2,9 @@
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { grantSchema, userQuotaSchema } from '#lib/schemas.ts';
+	import { formatDateOrDash, formatMegabytes } from '#lib/format.ts';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { adminInputClass } from '#lib/styles.ts';
 	import IconArrowLeft from '@tabler/icons-svelte/icons/arrow-left';
 	import IconChartBar from '@tabler/icons-svelte/icons/chart-bar';
 	import IconCoins from '@tabler/icons-svelte/icons/coins';
@@ -29,8 +32,6 @@
 	const grantAmount = fieldProxy(grant, 'amount');
 	const grantDescription = fieldProxy(grant, 'description');
 
-	const gigabytes = (megabytes: number) => `${(megabytes / 1024).toFixed(1)} GB`;
-	const date = (input: Date | string | null) => (input ? new Date(input).toLocaleString() : '-');
 </script>
 
 <svelte:head>
@@ -96,13 +97,13 @@
 			<div class="border border-white/10 bg-[#121212] px-3 py-2">
 				<p class="text-[10px] tracking-widest text-white/35 uppercase">Memory</p>
 				<p class="mt-1 text-sm font-semibold text-white">
-					{gigabytes(data.effective.memory)}
+					{formatMegabytes(data.effective.memory)}
 				</p>
 			</div>
 			<div class="border border-white/10 bg-[#121212] px-3 py-2">
 				<p class="text-[10px] tracking-widest text-white/35 uppercase">Disk</p>
 				<p class="mt-1 text-sm font-semibold text-white">
-					{gigabytes(data.effective.disk)}
+					{formatMegabytes(data.effective.disk)}
 				</p>
 			</div>
 			<div class="border border-white/10 bg-[#121212] px-3 py-2">
@@ -152,7 +153,7 @@
 						min="1"
 						required
 						bind:value={$grantAmount}
-						class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+						class="mt-1 {adminInputClass}"
 					/>
 					{#if $grantErrors.amount}
 						<span class="mt-1 block text-xs text-red-300">{$grantErrors.amount.join(' ')}</span>
@@ -165,7 +166,7 @@
 						maxlength="200"
 						placeholder="Optional"
 						bind:value={$grantDescription}
-						class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+						class="mt-1 {adminInputClass}"
 					/>
 				</label>
 				<button
@@ -178,29 +179,29 @@
 			</form>
 
 			{#if data.credits.transactions.length > 0}
-				<div class="mt-4 overflow-x-auto">
-					<table class="w-full min-w-[420px] text-left text-xs">
-						<thead class="text-[10px] tracking-widest text-white/35 uppercase">
-							<tr class="border-b border-white/10">
-								<th class="py-2 pr-3 font-semibold">Amount</th>
-								<th class="py-2 pr-3 font-semibold">Kind</th>
-								<th class="py-2 pr-3 font-semibold">Description</th>
-								<th class="py-2 font-semibold">When</th>
-							</tr>
-						</thead>
-						<tbody>
+				<div class="mt-4">
+					<Table.Root class="w-full min-w-[420px] text-left text-xs">
+						<Table.Header class="text-[10px] tracking-widest text-white/35 uppercase">
+							<Table.Row class="border-b border-white/10 hover:bg-transparent">
+								<Table.Head class="px-0 py-2 pr-3 font-semibold">Amount</Table.Head>
+								<Table.Head class="px-0 py-2 pr-3 font-semibold">Kind</Table.Head>
+								<Table.Head class="px-0 py-2 pr-3 font-semibold">Description</Table.Head>
+								<Table.Head class="px-0 py-2 font-semibold">When</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
 							{#each data.credits.transactions as entry (entry.id)}
-								<tr class="border-b border-white/5 last:border-0">
-									<td class="py-2 pr-3 font-semibold {entry.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}">
+								<Table.Row class="border-b border-white/5 last:border-0">
+									<Table.Cell class="px-0 py-2 pr-3 font-semibold {entry.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}">
 										{entry.amount >= 0 ? '+' : ''}{entry.amount}
-									</td>
-									<td class="py-2 pr-3 text-white/50">{entry.kind}</td>
-									<td class="py-2 pr-3 text-white/50">{entry.description || '-'}</td>
-									<td class="py-2 text-white/35">{date(entry.createdAt)}</td>
-								</tr>
+									</Table.Cell>
+									<Table.Cell class="px-0 py-2 pr-3 text-white/50">{entry.kind}</Table.Cell>
+									<Table.Cell class="px-0 py-2 pr-3 text-white/50">{entry.description || '-'}</Table.Cell>
+									<Table.Cell class="px-0 py-2 text-white/35">{formatDateOrDash(entry.createdAt)}</Table.Cell>
+								</Table.Row>
 							{/each}
-						</tbody>
-					</table>
+						</Table.Body>
+					</Table.Root>
 				</div>
 			{/if}
 		</section>
@@ -226,7 +227,7 @@
 					step="1"
 					bind:value={$quotaCpu}
 					placeholder={String(data.defaults.cpu)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.cpu}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.cpu.join(' ')}</span>
@@ -241,7 +242,7 @@
 					step="1"
 					bind:value={$quotaMemory}
 					placeholder={String(data.defaults.memory)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.memory}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.memory.join(' ')}</span>
@@ -256,7 +257,7 @@
 					step="1"
 					bind:value={$quotaDisk}
 					placeholder={String(data.defaults.disk)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.disk}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.disk.join(' ')}</span>
@@ -271,7 +272,7 @@
 					step="1"
 					bind:value={$quotaMaxServers}
 					placeholder={String(data.defaults.maxServers)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.maxServers}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxServers.join(' ')}</span>
@@ -286,7 +287,7 @@
 					step="1"
 					bind:value={$quotaMaxDatabases}
 					placeholder={String(data.defaults.maxDatabases)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.maxDatabases}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxDatabases.join(' ')}</span>
@@ -301,7 +302,7 @@
 					step="1"
 					bind:value={$quotaMaxAllocations}
 					placeholder={String(data.defaults.maxAllocations)}
-					class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+					class="mt-1 {adminInputClass}"
 				/>
 				{#if $quotaErrors.maxAllocations}
 					<span class="mt-1 block text-xs text-red-300">{$quotaErrors.maxAllocations.join(' ')}</span>

@@ -5,6 +5,9 @@
 	import { adapter } from '#lib/adapter/client.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { formatDate, initials } from '#lib/format.ts';
+	import { monoInputClass, smallInputClass } from '#lib/styles.ts';
 	import Modal from '#lib/components/app/Modal.svelte';
 	import type { Subuser } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
@@ -134,10 +137,6 @@
 		}
 	};
 
-	const initials = (value: string) => value.slice(0, 2).toUpperCase();
-
-	const formatDate = (value: string) =>
-		new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 </script>
 
 {#snippet permissionPicker(target: 'invite' | 'edit')}
@@ -205,7 +204,7 @@
 			<input
 				bind:value={invitePermissionText}
 				placeholder="control.start, control.stop"
-				class="w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class={monoInputClass}
 			/>
 			<span class="block text-[11px] text-white/30">
 				This panel does not expose a permission list. Enter comma separated permissions.
@@ -214,7 +213,7 @@
 			<input
 				bind:value={editPermissionText}
 				placeholder="control.start, control.stop"
-				class="w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class={monoInputClass}
 			/>
 			<span class="block text-[11px] text-white/30">
 				This panel does not expose a permission list. Enter comma separated permissions.
@@ -256,7 +255,7 @@
 				bind:value={email}
 				type="email"
 				placeholder="user@example.com"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {smallInputClass}"
 			/>
 		</label>
 		{@render permissionPicker('invite')}
@@ -325,19 +324,19 @@
 </Modal>
 
 <section class="border border-white/10 bg-[#1a1a1a]">
-	<table class="w-full text-left text-sm">
-		<thead>
-			<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-				<th class="px-4 py-2 font-semibold">User</th>
-				<th class="px-4 py-2 font-semibold">Permissions</th>
-				<th class="px-4 py-2 font-semibold">Added</th>
-				<th class="px-4 py-2"></th>
-			</tr>
-		</thead>
-		<tbody>
+	<Table.Root>
+		<Table.Header>
+			<Table.Row class="border-white/10 hover:bg-transparent">
+				<Table.Head>User</Table.Head>
+				<Table.Head>Permissions</Table.Head>
+				<Table.Head>Added</Table.Head>
+				<Table.Head></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
 			{#each subusers as subuser (subuser.id)}
-				<tr class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-					<td class="px-4 py-3">
+				<Table.Row class="hover:bg-white/[0.02]">
+					<Table.Cell class="py-3">
 						<div class="flex items-center gap-3">
 							<span
 								class="flex h-8 w-8 shrink-0 items-center justify-center border border-white/10 bg-white/5 text-[10px] font-bold text-white/60"
@@ -351,8 +350,8 @@
 								</p>
 							</div>
 						</div>
-					</td>
-					<td class="px-4 py-3">
+					</Table.Cell>
+					<Table.Cell class="py-3">
 						<div class="flex max-w-sm flex-wrap gap-1">
 							{#each subuser.permissions as permission (permission)}
 								<span
@@ -362,9 +361,9 @@
 								</span>
 							{/each}
 						</div>
-					</td>
-					<td class="px-4 py-3 text-xs text-white/40">{formatDate(subuser.addedAt)}</td>
-					<td class="px-4 py-3 text-right">
+					</Table.Cell>
+					<Table.Cell class="py-3 text-xs text-white/40">{formatDate(subuser.addedAt)}</Table.Cell>
+					<Table.Cell class="py-3 text-right">
 						<div class="flex items-center justify-end gap-2">
 							{#each subuser.actions ?? [] as action (action)}
 								{#if action === 'update'}
@@ -387,16 +386,16 @@
 								{/if}
 							{/each}
 						</div>
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/each}
 			{#if !subusers.length}
-				<tr>
-					<td colspan="4" class="px-4 py-8 text-center text-xs text-white/40">
+				<Table.Row>
+					<Table.Cell colspan={4} class="py-8 text-center text-xs text-white/40">
 						No subusers yet.
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/if}
-		</tbody>
-	</table>
+		</Table.Body>
+	</Table.Root>
 </section>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
+	import { formatDateOrDash, formatPrice } from '#lib/format.ts';
 
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
 	import IconCreditCard from '@tabler/icons-svelte/icons/credit-card';
@@ -30,22 +31,6 @@
 				await update();
 			};
 		};
-
-	const formatPrice = (cents: number | string, currency: string) => {
-		const amount = Number(cents) / 100;
-
-		try {
-			return new Intl.NumberFormat(undefined, {
-				style: 'currency',
-				currency: currency.toUpperCase()
-			}).format(amount);
-		} catch {
-			return `${amount.toFixed(2)} ${currency.toUpperCase()}`;
-		}
-	};
-
-	const formatDate = (value: Date | string | null) =>
-		value ? new Date(value).toLocaleString() : '—';
 
 	const inputClass =
 		'w-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none';
@@ -268,7 +253,7 @@
 									+{entry.credits.toLocaleString()}
 									{data.settings.creditName}
 								</p>
-								<p class="text-[11px] text-white/35">{formatDate(entry.createdAt)}</p>
+								<p class="text-[11px] text-white/35">{formatDateOrDash(entry.createdAt)}</p>
 							</div>
 							<div class="flex items-center gap-4">
 								<span class="text-sm text-white/60">

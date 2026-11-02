@@ -4,6 +4,7 @@
 	import IconTrash from '@tabler/icons-svelte/icons/trash';
 	import IconCheck from '@tabler/icons-svelte/icons/check';
 	import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
+	import { formatPrice } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -12,17 +13,6 @@
 		'w-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-indigo-500 focus:outline-none';
 	const label = 'mb-1.5 block text-[10px] font-semibold tracking-widest text-white/40 uppercase';
 	const section = 'border border-white/10 bg-[#1a1a1a]';
-
-	const formatPrice = (cents: number) => {
-		try {
-			return new Intl.NumberFormat(undefined, {
-				style: 'currency',
-				currency: data.settings.currency.toUpperCase()
-			}).format(cents / 100);
-		} catch {
-			return `${(cents / 100).toFixed(2)} ${data.settings.currency.toUpperCase()}`;
-		}
-	};
 </script>
 
 <svelte:head>
@@ -103,7 +93,7 @@
 				{data.settings.customEnabled ? 'Allowed' : 'Off'}
 			</p>
 			<p class="mt-1 text-[10px] text-white/30">
-				{formatPrice(data.settings.pricePerCredit)} per credit ·
+				{formatPrice(data.settings.pricePerCredit, data.settings.currency)} per credit ·
 				{data.settings.minCredits.toLocaleString()}–{data.settings.maxCredits.toLocaleString()}
 			</p>
 		</div>
@@ -322,7 +312,7 @@
 
 						<div class="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 px-4 py-2.5">
 							<div class="flex flex-wrap items-center gap-3 text-[10px] tracking-widest text-white/35 uppercase">
-								<span class="text-white/60">{formatPrice(option.priceCents)}</span>
+								<span class="text-white/60">{formatPrice(option.priceCents, data.settings.currency)}</span>
 								<span>·</span>
 								<span>{option.credits.toLocaleString()} {data.settings.creditName}</span>
 								<span

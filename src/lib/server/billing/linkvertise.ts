@@ -24,15 +24,6 @@ export const parseLinkvertisePublisherId = (value: string) => {
 	return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
 
-export const isLinkvertiseUrl = (value: string) => {
-	try {
-		const host = new URL(value).hostname.toLowerCase();
-		return host === 'linkvertise.com' || host.endsWith('.linkvertise.com') || host === 'link-to.net' || host.endsWith('.link-to.net');
-	} catch {
-		return false;
-	}
-};
-
 export const createLinkvertiseLink = (destination: string, publisherId: number) => {
 	let url: URL;
 

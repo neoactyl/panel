@@ -2,6 +2,7 @@
 	import IconPackage from '@tabler/icons-svelte/icons/package';
 	import IconSettings from '@tabler/icons-svelte/icons/settings';
 	import IconStack2 from '@tabler/icons-svelte/icons/stack-2';
+	import * as Table from '#lib/components/ui/table/index.js';
 	import type { SoftwarePolicy } from '#lib/server/catalog/software-policy.ts';
 	import type { PageProps } from './$types';
 
@@ -105,33 +106,33 @@
 				No eggs were returned by the panel.
 			</p>
 		{:else}
-			<div class="mt-4 overflow-x-auto border border-white/10">
-				<table class="w-full min-w-[720px] text-left text-sm">
-					<thead>
-						<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-							<th class="px-3 py-2 font-semibold">Egg</th>
-							<th class="px-3 py-2 font-semibold">Nest</th>
-							<th class="px-3 py-2 font-semibold">Limits</th>
-							<th class="px-3 py-2 font-semibold">Variables</th>
-							<th class="px-3 py-2 font-semibold">Status</th>
-							<th class="px-3 py-2 text-right font-semibold">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
+			<div class="mt-4 border border-white/10">
+				<Table.Root class="w-full min-w-[720px] text-left text-sm">
+					<Table.Header>
+						<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+							<Table.Head class="px-3 py-2 font-semibold">Egg</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Nest</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Limits</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Variables</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Status</Table.Head>
+							<Table.Head class="px-3 py-2 text-right font-semibold">Actions</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each data.eggs as egg (egg.id)}
-							<tr class="border-b border-white/5 last:border-0">
-								<td class="px-3 py-2">
+							<Table.Row class="border-b border-white/5 last:border-0">
+								<Table.Cell class="px-3 py-2">
 									<p class="font-semibold text-white">{egg.name}</p>
 									<p class="line-clamp-1 text-xs text-white/40">
 										{egg.description || 'No description'}
 									</p>
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">{egg.groupName}</td>
-								<td class="px-3 py-2 text-[11px] text-white/50">{limits(egg.policy)}</td>
-								<td class="px-3 py-2 text-xs text-white/60">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">{egg.groupName}</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-[11px] text-white/50">{limits(egg.policy)}</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
 									{egg.policy.editableVariables.length} editable
-								</td>
-								<td class="px-3 py-2">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<span
 										class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase
 											{egg.policy.visible
@@ -140,8 +141,8 @@
 									>
 										{egg.policy.visible ? 'Visible' : 'Hidden'}
 									</span>
-								</td>
-								<td class="px-3 py-2">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<div class="flex justify-end">
 										<a
 											href="/admin/software/{egg.groupId}/{egg.id}"
@@ -151,11 +152,11 @@
 											Configure
 										</a>
 									</div>
-								</td>
-							</tr>
+								</Table.Cell>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			</div>
 		{/if}
 	</section>

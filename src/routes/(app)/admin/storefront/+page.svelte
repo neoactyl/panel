@@ -2,11 +2,11 @@
 	import IconPencil from '@tabler/icons-svelte/icons/pencil';
 	import IconPlus from '@tabler/icons-svelte/icons/plus';
 	import IconShoppingBag from '@tabler/icons-svelte/icons/shopping-bag';
+	import { formatMegabytes } from '#lib/format.ts';
+	import * as Table from '#lib/components/ui/table/index.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	const gigabytes = (megabytes: number) => `${(megabytes / 1024).toFixed(1)} GB`;
 </script>
 
 <svelte:head>
@@ -40,44 +40,44 @@
 				No storefront items yet.
 			</p>
 		{:else}
-			<div class="mt-4 overflow-x-auto border border-white/10">
-				<table class="w-full min-w-[720px] text-left text-sm">
-					<thead>
-						<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-							<th class="px-3 py-2 font-semibold">Item</th>
-							<th class="px-3 py-2 font-semibold">Type</th>
-							<th class="px-3 py-2 font-semibold">Resources</th>
-							<th class="px-3 py-2 font-semibold">Price</th>
-							<th class="px-3 py-2 font-semibold">After claim</th>
-							<th class="px-3 py-2 font-semibold">Status</th>
-							<th class="px-3 py-2 text-right font-semibold">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
+			<div class="mt-4 border border-white/10">
+				<Table.Root class="w-full min-w-[720px] text-left text-sm">
+					<Table.Header>
+						<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+							<Table.Head class="px-3 py-2 font-semibold">Item</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Type</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Resources</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Price</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">After claim</Table.Head>
+							<Table.Head class="px-3 py-2 font-semibold">Status</Table.Head>
+							<Table.Head class="px-3 py-2 text-right font-semibold">Actions</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each data.items as item (item.id)}
-							<tr class="border-b border-white/5 last:border-0">
-								<td class="px-3 py-2">
+							<Table.Row class="border-b border-white/5 last:border-0">
+								<Table.Cell class="px-3 py-2">
 									<p class="font-semibold text-white">{item.name}</p>
 									<p class="text-xs text-white/40">
 										{item.description || 'No description'}
 									</p>
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
 									{item.kind === 'resource' ? 'Upgrade' : 'Server'}
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">
-									{item.kind === 'resource' ? '+' : ''}{item.cpu}% - {gigabytes(item.memory)} RAM
-									- {gigabytes(item.disk)} disk
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
+									{item.kind === 'resource' ? '+' : ''}{item.cpu}% - {formatMegabytes(item.memory)} RAM
+									- {formatMegabytes(item.disk)} disk
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">
 									<span class="block font-semibold text-white">{item.price}</span>
 									<span class="block">Renewal {item.renewalPrice}</span>
 									{#if item.kind === 'server'}
 										<span class="block">{item.durationDays} days</span>
 									{/if}
-								</td>
-								<td class="px-3 py-2 text-xs text-white/60">{item.successMode}</td>
-								<td class="px-3 py-2">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2 text-xs text-white/60">{item.successMode}</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<span
 										class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase
 											{item.enabled
@@ -86,8 +86,8 @@
 									>
 										{item.enabled ? 'Enabled' : 'Disabled'}
 									</span>
-								</td>
-								<td class="px-3 py-2">
+								</Table.Cell>
+								<Table.Cell class="px-3 py-2">
 									<div class="flex justify-end">
 										<a
 											href="/admin/storefront/{item.id}"
@@ -97,11 +97,11 @@
 											Edit
 										</a>
 									</div>
-								</td>
-							</tr>
+								</Table.Cell>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			</div>
 		{/if}
 	</section>

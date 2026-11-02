@@ -12,6 +12,8 @@
 	import IconCheck from '@tabler/icons-svelte/icons/check';
 	import IconLoader from '@tabler/icons-svelte/icons/loader-2';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { formatMegabytes } from '#lib/format.ts';
+	import { createInputClass } from '#lib/styles.ts';
 	import { adapter } from '#lib/adapter/client.ts';
 	import type { SoftwareVariable } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
@@ -107,7 +109,6 @@
 	const percent = (used: number, limit: number) =>
 		limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
-	const gigabytes = (megabytes: number) => `${(megabytes / 1024).toFixed(1)} GB`;
 	const rangeText = (minimum: number, maximum: number, unit: string) =>
 		Number.isFinite(maximum) ? `${minimum}-${maximum}${unit}` : `${minimum}${unit}+`;
 
@@ -312,7 +313,7 @@
 						placeholder="My new server"
 						maxlength="100"
 						autocomplete="off"
-						class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+						class={createInputClass}
 					/>
 				</label>
 
@@ -338,12 +339,12 @@
 					>
 						<p>
 							Your allocation: {data.used.cpu} / {data.quota.cpu}% CPU ·
-							{gigabytes(data.used.memory)} / {gigabytes(data.quota.memory)} memory ·
-							{gigabytes(data.used.disk)} / {gigabytes(data.quota.disk)} disk
+							{formatMegabytes(data.used.memory)} / {formatMegabytes(data.quota.memory)} memory ·
+							{formatMegabytes(data.used.disk)} / {formatMegabytes(data.quota.disk)} disk
 						</p>
 						<p class="mt-1 text-xs text-white/40">
-							Remaining: {data.remaining.cpu}% CPU · {gigabytes(data.remaining.memory)} memory ·
-							{gigabytes(data.remaining.disk)} disk
+							Remaining: {data.remaining.cpu}% CPU · {formatMegabytes(data.remaining.memory)} memory ·
+							{formatMegabytes(data.remaining.disk)} disk
 						</p>
 						{#if quotaExceeds}
 							<p class="mt-1 text-xs text-red-300">
@@ -366,7 +367,7 @@
 								min="1"
 								step="1"
 								placeholder={String(Math.round(defaultCpu))}
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+								class={createInputClass}
 							/>
 						</label>
 						<label class="flex flex-col gap-1.5">
@@ -377,7 +378,7 @@
 								min="128"
 								step="128"
 								placeholder={String(Math.round(defaultRam))}
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+								class={createInputClass}
 							/>
 						</label>
 						<label class="flex flex-col gap-1.5">
@@ -388,7 +389,7 @@
 								min="128"
 								step="128"
 								placeholder={String(Math.round(defaultDisk))}
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+								class={createInputClass}
 							/>
 						</label>
 					</div>
@@ -411,7 +412,7 @@
 								min="0"
 								step="1"
 								placeholder="0"
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+								class={createInputClass}
 							/>
 							<span class="text-[11px] text-white/30">
 								{databaseLimit > 0 ? `Up to ${databaseLimit}` : 'Unlimited'} · 0 disables
@@ -426,7 +427,7 @@
 								min="0"
 								step="1"
 								placeholder="0"
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-indigo-500/60 focus:outline-none"
+								class={createInputClass}
 							/>
 							<span class="text-[11px] text-white/30">
 								{allocationLimit > 0 ? `Up to ${allocationLimit}` : 'Unlimited'} · 0 leaves only
@@ -661,7 +662,7 @@
 									<div class="flex flex-col gap-1">
 										<div class="flex justify-between text-[11px] text-white/40 uppercase">
 											<span>Memory</span>
-											<span>{gigabytes(node.memory.allocated)} / {gigabytes(node.memory.limit)}</span>
+											<span>{formatMegabytes(node.memory.allocated)} / {formatMegabytes(node.memory.limit)}</span>
 										</div>
 										<div class="h-1.5 bg-white/5">
 											<div
@@ -673,7 +674,7 @@
 									<div class="flex flex-col gap-1">
 										<div class="flex justify-between text-[11px] text-white/40 uppercase">
 											<span>Disk</span>
-											<span>{gigabytes(node.disk.allocated)} / {gigabytes(node.disk.limit)}</span>
+											<span>{formatMegabytes(node.disk.allocated)} / {formatMegabytes(node.disk.limit)}</span>
 										</div>
 										<div class="h-1.5 bg-white/5">
 											<div

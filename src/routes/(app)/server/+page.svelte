@@ -21,6 +21,7 @@
 	import type { Server, ServerAction, ServerState } from '#lib/adapter/sdk.ts';
 	import { usageColor } from '#lib/client/usage-color.ts';
 	import { formatTimeRemaining, getRenewalWindow } from '#lib/renewal-window.ts';
+	import { SERVER_STATE_STYLES } from '#lib/status.ts';
 
 	let { data, form }: PageProps = $props();
 
@@ -45,16 +46,6 @@
 			window.removeEventListener('keydown', onKeydown);
 		};
 	});
-
-	const STATE_STYLES: Record<ServerState, string> = {
-		running: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-		starting: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-		stopping: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-		installing: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
-		suspended: 'border-red-500/30 bg-red-500/10 text-red-300',
-		offline: 'border-white/10 bg-white/5 text-white/50',
-		unknown: 'border-white/10 bg-white/5 text-white/50'
-	};
 
 	const filtered = $derived(
 		servers.filter((server) => {
@@ -262,7 +253,7 @@
 										/>
 									</a>
 									<span
-										class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {STATE_STYLES[
+										class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {SERVER_STATE_STYLES[
 											server.state
 										]}"
 									>

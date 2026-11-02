@@ -3,6 +3,9 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import * as Breadcrumb from '#lib/components/ui/breadcrumb/index.js';
 	import * as CodeBlock from '#lib/components/ui/code-block/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { formatBytes, formatDateTime } from '#lib/format.ts';
+	import { monoInputClass } from '#lib/styles.ts';
 	import IconFolder from '@tabler/icons-svelte/icons/folder';
 	import IconFolderOpen from '@tabler/icons-svelte/icons/folder-open';
 	import IconArrowLeft from '@tabler/icons-svelte/icons/arrow-left';
@@ -536,22 +539,6 @@
 		if (editor) closeEditor();
 	};
 
-	const formatSize = (bytes: number | null) => {
-		if (bytes === null) return '—';
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-	};
-
-	const formatDate = (value: string) =>
-		new Date(value).toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-
 	const draftSize = $derived(new TextEncoder().encode(draft).length);
 	const draftLines = $derived(draft.split('\n').length);
 
@@ -637,7 +624,7 @@
 
 			<CodeBlock.Footer class="justify-between border-t border-white/10 py-2">
 				<span class="font-mono text-[10px] text-white/30">
-					{editorLoading ? 'Loading file...' : `${draftLines} lines · ${formatSize(draftSize)}`}
+					{editorLoading ? 'Loading file...' : `${draftLines} lines · ${formatBytes(draftSize)}`}
 				</span>
 				<span class="font-mono text-[10px] text-white/30">
 					{preview ? 'Read-only preview' : 'Esc to go back'}
@@ -655,7 +642,7 @@
 			<div>
 				<p class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">Disk storage</p>
 				<p class="mt-0.5 font-mono text-xs text-white/80">
-					{formatSize(diskUsed)} <span class="text-white/30">/ {formatSize(diskLimit)}</span>
+					{formatBytes(diskUsed)} <span class="text-white/30">/ {formatBytes(diskLimit)}</span>
 				</p>
 			</div>
 		</div>
@@ -665,7 +652,7 @@
 				class="flex items-center justify-between text-[10px] font-semibold tracking-wider text-white/40 uppercase"
 			>
 				<span style="color: {usageColor(diskPct)}">{diskPct.toFixed(1)}% used</span>
-				<span>{formatSize(diskFree)} remaining</span>
+				<span>{formatBytes(diskFree)} remaining</span>
 			</div>
 			<div class="mt-2 h-1 w-full bg-white/5">
 				<div
@@ -759,21 +746,20 @@
 		</div>
 	</div>
 
-	<div class="overflow-x-auto">
-	<table class="w-full text-left text-sm select-none">
-		<thead>
-			<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-				<th class="px-4 py-2 font-semibold">Name</th>
-				<th class="hidden px-4 py-2 font-semibold sm:table-cell">Size</th>
-				<th class="hidden px-4 py-2 font-semibold md:table-cell">Modified</th>
-				<th class="px-4 py-2"></th>
-			</tr>
-		</thead>
-		<tbody>
+	<Table.Root class="w-full text-left text-sm select-none">
+		<Table.Header>
+			<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+				<Table.Head class="px-4 py-2 font-semibold">Name</Table.Head>
+				<Table.Head class="hidden px-4 py-2 font-semibold sm:table-cell">Size</Table.Head>
+				<Table.Head class="hidden px-4 py-2 font-semibold md:table-cell">Modified</Table.Head>
+				<Table.Head class="px-4 py-2"></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
 			{#each files as file (file.name)}
 				{@const Icon = iconFor(file)}
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-				<tr
+				<Table.Row
 					class="touch-manipulation border-b border-white/5 transition last:border-0 hover:bg-white/[0.02]
 						{selected === file.name ? 'bg-white/[0.04]' : ''}"
 					onclick={() => handleRowClick(file)}
@@ -784,7 +770,7 @@
 					onpointercancel={cancelPress}
 					onpointerleave={cancelPress}
 				>
-					<td class="px-4 py-2.5">
+					<Table.Cell class="px-4 py-2.5">
 						<button
 							type="button"
 							class="flex items-center gap-2 text-left text-sm text-white/80 transition hover:text-white"
@@ -792,14 +778,14 @@
 							<Icon class="h-4 w-4 shrink-0 {iconColor(file)}" />
 							{file.name}
 						</button>
-					</td>
-					<td class="hidden px-4 py-2.5 font-mono text-xs text-white/40 sm:table-cell">
-						{formatSize(file.size)}
-					</td>
-					<td class="hidden px-4 py-2.5 text-xs text-white/40 md:table-cell">
-						{formatDate(file.modified)}
-					</td>
-					<td class="px-4 py-2.5">
+					</Table.Cell>
+					<Table.Cell class="hidden px-4 py-2.5 font-mono text-xs text-white/40 sm:table-cell">
+						{formatBytes(file.size)}
+					</Table.Cell>
+					<Table.Cell class="hidden px-4 py-2.5 text-xs text-white/40 md:table-cell">
+						{formatDateTime(file.modified)}
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5">
 						<div class="flex items-center justify-end">
 							<button
 								type="button"
@@ -811,19 +797,18 @@
 								<IconDots class="h-4 w-4" />
 							</button>
 						</div>
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/each}
 			{#if !files.length}
-				<tr>
-					<td colspan="4" class="px-4 py-10 text-center text-xs text-white/40">
+				<Table.Row>
+					<Table.Cell colspan={4} class="px-4 py-10 text-center text-xs text-white/40">
 						This folder is empty.
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/if}
-		</tbody>
-	</table>
-	</div>
+		</Table.Body>
+	</Table.Root>
 </section>
 
 <Modal
@@ -845,7 +830,7 @@
 				name="name"
 				autocomplete="off"
 				placeholder="new-folder"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {monoInputClass}"
 			/>
 		</label>
 		{#if folderError}

@@ -7,6 +7,9 @@
 
 	let { data, form }: PageProps = $props();
 
+	let provider = $state('linkvertise');
+	const isLinkvertise = $derived(provider.trim().toLowerCase() === 'linkvertise');
+
 	const inputCls =
 		'w-full border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-indigo-500 focus:outline-none';
 	const labelCls = 'text-[10px] font-semibold tracking-widest text-white/40 uppercase';
@@ -178,21 +181,29 @@
 					</div>
 					<div>
 						<label class={labelCls} for="task-provider">Provider</label>
-						<input id="task-provider" name="provider" value="linkvertise" class={inputCls} />
+						<input id="task-provider" name="provider" bind:value={provider} class={inputCls} />
 					</div>
 				</div>
 				<div>
 					<label class={labelCls} for="task-description">Description</label>
 					<input id="task-description" name="description" class={inputCls} />
 				</div>
-				<div>
-					<label class={labelCls} for="task-url">Destination URL</label>
-					<input id="task-url" name="url" type="url" required class={inputCls} placeholder="https://example.com/reward" />
-					<p class="mt-1 text-[10px] text-white/30">
-						A Linkvertise publisher ID is required in Settings. Linkvertise tasks stay hidden
-						until it is configured.
-					</p>
-				</div>
+				{#if isLinkvertise}
+					<div class="border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-white/40">
+						A Linkvertise link is generated automatically when a user starts this task. Rewards are
+						credited as soon as they finish the Linkvertise step, so no destination URL is needed.
+						<br />
+						<span class="text-white/30">
+							Set a Linkvertise publisher ID in Settings. Linkvertise tasks stay hidden until it is
+							configured.
+						</span>
+					</div>
+				{:else}
+					<div>
+						<label class={labelCls} for="task-url">Destination URL</label>
+						<input id="task-url" name="url" type="url" required class={inputCls} placeholder="https://example.com/reward" />
+					</div>
+				{/if}
 				<div class="grid gap-3 sm:grid-cols-4">
 					<div>
 						<label class={labelCls} for="task-reward">Reward</label>

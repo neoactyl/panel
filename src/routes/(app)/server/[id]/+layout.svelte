@@ -10,6 +10,7 @@
 	import type { ServerAction, ServerState } from '#lib/adapter/sdk.ts';
 	import { panelPrompts } from '#lib/panel/prompts.svelte.ts';
 	import { createServerPanel, setServerPanel } from '#lib/panel/state.svelte.ts';
+	import { SERVER_STATE_STYLES } from '#lib/status.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -21,16 +22,6 @@
 		untrack(() => data.allocations)
 	);
 	setServerPanel(panel);
-
-	const STATE_STYLES: Record<ServerState, string> = {
-		running: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-		starting: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-		stopping: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-		installing: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
-		suspended: 'border-red-500/30 bg-red-500/10 text-red-300',
-		offline: 'border-white/10 bg-white/5 text-white/50',
-		unknown: 'border-white/10 bg-white/5 text-white/50'
-	};
 
 	const ACTIONS_BY_STATE: Record<ServerState, ServerAction[]> = {
 		running: ['restart', 'stop', 'kill'],
@@ -95,7 +86,7 @@
 				<div class="flex flex-wrap items-center gap-2">
 					<h1 class="truncate text-xl font-extrabold tracking-tight text-white">{server.name}</h1>
 					<span
-						class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {STATE_STYLES[
+						class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {SERVER_STATE_STYLES[
 							panel.powerState
 						]}"
 					>

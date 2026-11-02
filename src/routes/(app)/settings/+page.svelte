@@ -5,6 +5,8 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
+	import { formatDate, initials as getInitials } from '#lib/format.ts';
+	import { softInputClass } from '#lib/styles.ts';
 	import IconUser from '@tabler/icons-svelte/icons/user';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconDevices from '@tabler/icons-svelte/icons/devices';
@@ -64,13 +66,7 @@
 	const { enhance: enhanceSignout, submitting: signingOut } = signoutForm;
 
 	const user = $derived(data.user);
-	const initials = $derived(
-		(user.name || user.email)
-			.split(/\s+/)
-			.slice(0, 2)
-			.map((part) => part[0]?.toUpperCase() ?? '')
-			.join('')
-	);
+	const initials = $derived(getInitials(user.name || user.email));
 	const memberSince = $derived(
 		new Date(user.createdAt).toLocaleDateString(undefined, {
 			year: 'numeric',
@@ -78,13 +74,6 @@
 			day: 'numeric'
 		})
 	);
-
-	const formatDate = (value: Date | string) =>
-		new Date(value).toLocaleDateString(undefined, {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
 
 	const describeAgent = (agent: string | null) => {
 		if (!agent) return { label: 'Unknown device', mobile: false };
@@ -181,7 +170,7 @@
 								name="name"
 								maxlength="64"
 								placeholder="Your name"
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+								class={softInputClass}
 								bind:value={$displayName}
 							/>
 							{#if $profileErrors.name}
@@ -283,7 +272,7 @@
 								name="email"
 								autocomplete="username"
 								required
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+								class={softInputClass}
 								bind:value={$panelEmail}
 							/>
 							{#if $panelErrors.email}
@@ -299,7 +288,7 @@
 								name="password"
 								autocomplete="current-password"
 								required
-								class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+								class={softInputClass}
 								bind:value={$panelPassword}
 							/>
 							{#if $panelErrors.password}
@@ -351,7 +340,7 @@
 							name="currentPassword"
 							autocomplete="current-password"
 							required
-							class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							class={softInputClass}
 						/>
 						{#if $passwordErrors.currentPassword}
 							<span class="text-xs font-medium text-red-300">
@@ -370,7 +359,7 @@
 							autocomplete="new-password"
 							required
 							minlength="8"
-							class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							class={softInputClass}
 						/>
 						{#if $passwordErrors.newPassword}
 							<span class="text-xs font-medium text-red-300">
@@ -389,7 +378,7 @@
 							autocomplete="new-password"
 							required
 							minlength="8"
-							class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/30 transition focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							class={softInputClass}
 						/>
 						{#if $passwordErrors.confirmPassword}
 							<span class="text-xs font-medium text-red-300">

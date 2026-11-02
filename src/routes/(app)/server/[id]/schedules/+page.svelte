@@ -6,6 +6,9 @@
 	import { adapter } from '#lib/adapter/client.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { formatDateTime } from '#lib/format.ts';
+	import { inputClass, monoInputClass } from '#lib/styles.ts';
 	import Modal from '#lib/components/app/Modal.svelte';
 	import type { Schedule } from '#lib/adapter/sdk.ts';
 	import type { PageProps } from './$types';
@@ -76,15 +79,7 @@
 		}
 	};
 
-	const formatDate = (value: string | null) => {
-		if (!value) return 'Never';
-		return new Date(value).toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	};
+	const formatDate = (value: string | null) => (value ? formatDateTime(value) : 'Never');
 </script>
 
 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -106,31 +101,31 @@
 </div>
 
 <section class="border border-white/10 bg-[#1a1a1a]">
-	<table class="w-full text-left text-sm">
-		<thead>
-			<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-				<th class="px-4 py-2 font-semibold">Schedule</th>
-				<th class="px-4 py-2 font-semibold">Cron</th>
-				<th class="px-4 py-2 font-semibold">Action</th>
-				<th class="px-4 py-2 font-semibold">Last run</th>
-				<th class="px-4 py-2 font-semibold">Next run</th>
-				<th class="px-4 py-2"></th>
-			</tr>
-		</thead>
-		<tbody>
+	<Table.Root class="w-full text-left text-sm">
+		<Table.Header>
+			<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
+				<Table.Head class="px-4 py-2 font-semibold">Schedule</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Cron</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Action</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Last run</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Next run</Table.Head>
+				<Table.Head class="px-4 py-2"></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
 			{#each schedules as schedule (schedule.id)}
-				<tr class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-					<td class="px-4 py-2.5">
+				<Table.Row class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+					<Table.Cell class="px-4 py-2.5">
 						<div class="flex items-center gap-2">
 							<IconClock class="h-4 w-4 shrink-0 text-white/40" />
 							<span class="text-xs text-white/80">{schedule.name}</span>
 						</div>
-					</td>
-					<td class="px-4 py-2.5 font-mono text-xs text-white/40">{schedule.cron}</td>
-					<td class="px-4 py-2.5 font-mono text-xs text-white/40">{schedule.action}</td>
-					<td class="px-4 py-2.5 text-xs text-white/40">{formatDate(schedule.lastRun)}</td>
-					<td class="px-4 py-2.5 text-xs text-white/40">{formatDate(schedule.nextRun)}</td>
-					<td class="px-4 py-2.5">
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/40">{schedule.cron}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/40">{schedule.action}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 text-xs text-white/40">{formatDate(schedule.lastRun)}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 text-xs text-white/40">{formatDate(schedule.nextRun)}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5">
 						<div class="flex items-center justify-end gap-2">
 							{#each schedule.actions ?? [] as action (action)}
 								{#if action === 'toggle'}
@@ -160,11 +155,11 @@
 								{/if}
 							{/each}
 						</div>
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/each}
-		</tbody>
-	</table>
+		</Table.Body>
+	</Table.Root>
 </section>
 
 <Modal
@@ -181,7 +176,7 @@
 			<input
 				bind:value={newName}
 				placeholder="Nightly restart"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {inputClass}"
 			/>
 		</label>
 		<label class="block">
@@ -189,7 +184,7 @@
 			<input
 				bind:value={newCron}
 				placeholder="0 4 * * *"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {monoInputClass}"
 			/>
 		</label>
 		<label class="block">
@@ -197,7 +192,7 @@
 			<input
 				bind:value={newAction}
 				placeholder="restart"
-				class="mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 font-mono text-xs text-white placeholder:text-white/25 focus:border-indigo-500/60 focus:outline-none"
+				class="mt-1 {monoInputClass}"
 			/>
 		</label>
 		{#if createError}

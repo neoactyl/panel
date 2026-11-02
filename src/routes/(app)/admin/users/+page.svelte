@@ -4,6 +4,8 @@
 	import IconUser from '@tabler/icons-svelte/icons/user';
 	import IconBan from '@tabler/icons-svelte/icons/ban';
 	import IconTrash from '@tabler/icons-svelte/icons/trash';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { formatDate } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -11,9 +13,6 @@
 	const { enhance: enhanceRole, message: roleMessage } = superForm(data.roleForm, { id: 'role' });
 	const { enhance: enhanceBan, message: banMessage } = superForm(data.banForm, { id: 'ban' });
 	const { enhance: enhanceDelete, message: deleteMessage } = superForm(data.deleteForm, { id: 'delete' });
-
-	const date = (value: Date | string | number) =>
-		new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
 </script>
 
 <svelte:head>
@@ -49,21 +48,21 @@
 		</div>
 	{/if}
 
-	<div class="overflow-x-auto border border-white/10 bg-[#1a1a1a]">
-		<table class="w-full min-w-[640px] text-left text-sm">
-			<thead>
-				<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-					<th class="px-4 py-3 font-semibold">User</th>
-					<th class="px-4 py-3 font-semibold">Role</th>
-					<th class="px-4 py-3 font-semibold">Status</th>
-					<th class="px-4 py-3 font-semibold">Joined</th>
-					<th class="px-4 py-3 text-right font-semibold">Actions</th>
-				</tr>
-			</thead>
-			<tbody>
+	<div class="border border-white/10 bg-[#1a1a1a]">
+		<Table.Root class="w-full min-w-[640px] text-left text-sm">
+			<Table.Header>
+				<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase hover:bg-transparent">
+					<Table.Head class="px-4 py-3 font-semibold">User</Table.Head>
+					<Table.Head class="px-4 py-3 font-semibold">Role</Table.Head>
+					<Table.Head class="px-4 py-3 font-semibold">Status</Table.Head>
+					<Table.Head class="px-4 py-3 font-semibold">Joined</Table.Head>
+					<Table.Head class="px-4 py-3 text-right font-semibold">Actions</Table.Head>
+				</Table.Row>
+			</Table.Header>
+			<Table.Body>
 				{#each data.users as account (account.id)}
-					<tr class="border-b border-white/5 last:border-0">
-						<td class="px-4 py-3">
+					<Table.Row class="border-b border-white/5 last:border-0">
+						<Table.Cell class="px-4 py-3">
 							<div class="flex items-center gap-3">
 								<div class="flex h-8 w-8 items-center justify-center border border-white/10 bg-white/5">
 									{#if account.role === 'admin'}
@@ -82,8 +81,8 @@
 									<p class="truncate text-xs text-white/40">{account.email}</p>
 								</div>
 							</div>
-						</td>
-						<td class="px-4 py-3">
+						</Table.Cell>
+						<Table.Cell class="px-4 py-3">
 							<span
 								class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase
 									{account.role === 'admin'
@@ -92,8 +91,8 @@
 							>
 								{account.role ?? 'user'}
 							</span>
-						</td>
-						<td class="px-4 py-3">
+						</Table.Cell>
+						<Table.Cell class="px-4 py-3">
 							{#if account.banned}
 								<span class="border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-red-300 uppercase">
 									Banned
@@ -101,9 +100,9 @@
 							{:else}
 								<span class="text-xs text-white/40">Active</span>
 							{/if}
-						</td>
-						<td class="px-4 py-3 text-xs text-white/50">{date(account.createdAt)}</td>
-						<td class="px-4 py-3">
+						</Table.Cell>
+						<Table.Cell class="px-4 py-3 text-xs text-white/50">{formatDate(account.createdAt)}</Table.Cell>
+						<Table.Cell class="px-4 py-3">
 							<div class="flex justify-end gap-2">
 								<a
 									href="/admin/users/{account.id}"
@@ -155,10 +154,10 @@
 									</form>
 								{/if}
 							</div>
-						</td>
-					</tr>
+						</Table.Cell>
+					</Table.Row>
 				{/each}
-			</tbody>
-		</table>
+			</Table.Body>
+		</Table.Root>
 	</div>
 </div>

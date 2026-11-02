@@ -98,7 +98,7 @@
 		<div
 			class="border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
 		>
-			Task verified. Claim your reward below.
+			Task verified. Your credits have been added automatically.
 		</div>
 	{/if}
 
@@ -153,15 +153,22 @@
 							>
 								{busy === task.id ? 'Opening...' : 'Start task'}
 							</button>
-							<button
-								type="button"
-								disabled={busy === `claim:${task.id}`}
-								onclick={() => claim(task.id)}
-								class="border border-white/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-white/60 uppercase transition hover:border-white/20 hover:text-white disabled:opacity-40"
-							>
-								<IconCheck class="inline size-3" /> Claim
-							</button>
+							{#if !task.autoCredit}
+								<button
+									type="button"
+									disabled={busy === `claim:${task.id}`}
+									onclick={() => claim(task.id)}
+									class="border border-white/10 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-white/60 uppercase transition hover:border-white/20 hover:text-white disabled:opacity-40"
+								>
+									<IconCheck class="inline size-3" /> Claim
+								</button>
+							{/if}
 						</div>
+						{#if task.autoCredit}
+							<div class="mt-2 text-[10px] tracking-widest text-white/30 uppercase">
+								Credits are added automatically after the Linkvertise step.
+							</div>
+						{/if}
 						{#if !available(task)}
 							<div class="mt-2 text-[10px] tracking-widest text-amber-400/70 uppercase">
 								Available again {new Date(task.nextAvailableAt ?? '').toLocaleString()}

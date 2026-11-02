@@ -8,6 +8,8 @@
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { adapter } from '#lib/adapter/client.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
+	import { formatDate } from '#lib/format.ts';
+	import { borderInputClass } from '#lib/styles.ts';
 	import { formatTimeRemaining, getRenewalWindow } from '#lib/renewal-window.ts';
 	import type { PageProps } from './$types';
 
@@ -15,7 +17,6 @@
 
 	const panel = getServerPanel();
 	const server = $derived(data.server);
-	const date = (value: Date | string) => new Date(value).toLocaleDateString();
 	let now = $state(Date.now());
 	const renewalWindow = $derived(data.billing ? getRenewalWindow(data.billing, now) : null);
 
@@ -166,7 +167,7 @@
 				step="1"
 				required
 				value={server.cpu.limit}
-				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+				class={borderInputClass}
 			/>
 		</label>
 		<label class="flex flex-col gap-1.5">
@@ -179,7 +180,7 @@
 				step="1"
 				required
 				value={server.memory.limit}
-				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+				class={borderInputClass}
 			/>
 		</label>
 		<label class="flex flex-col gap-1.5">
@@ -192,7 +193,7 @@
 				step="1"
 				required
 				value={server.disk.limit}
-				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+				class={borderInputClass}
 			/>
 		</label>
 		<label class="flex flex-col gap-1.5">
@@ -207,7 +208,7 @@
 				step="1"
 				required
 				value={server.databaseLimit ?? 0}
-				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+				class={borderInputClass}
 			/>
 			<span class="text-[11px] text-white/30">0 disables databases</span>
 		</label>
@@ -225,7 +226,7 @@
 				step="1"
 				required
 				value={server.allocationLimit ?? 0}
-				class="border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/60"
+				class={borderInputClass}
 			/>
 			<span class="text-[11px] text-white/30">Total ports, including the primary</span>
 		</label>
@@ -252,7 +253,7 @@
 				<dt class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">
 					Next renewal
 				</dt>
-				<dd class="mt-1 text-white/70">{date(data.billing.nextRenewalAt)}</dd>
+				<dd class="mt-1 text-white/70">{formatDate(data.billing.nextRenewalAt)}</dd>
 			</div>
 			<div>
 				<dt class="text-[10px] font-semibold tracking-widest text-white/40 uppercase">

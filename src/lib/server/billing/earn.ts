@@ -12,7 +12,6 @@ import { serverEnv } from '#lib/server/config/env.ts';
 import {
 	LinkvertiseError,
 	createLinkvertiseLink,
-	isLinkvertiseUrl,
 	parseLinkvertisePublisherId
 } from '#lib/server/billing/linkvertise.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
@@ -55,6 +54,7 @@ export type EarnTaskView = {
 	nextAvailableAt: string | null;
 	startedAt: string | null;
 	verified: boolean;
+	autoCredit: boolean;
 };
 
 const isLinkvertiseProvider = (task: typeof earnTask.$inferSelect) =>
@@ -78,10 +78,25 @@ const linkvertiseConfigured = () => {
 const usesLinkvertiseVerification = (
 	task: typeof earnTask.$inferSelect,
 	publisherId: number | null
-) =>
-	publisherId !== null &&
-	isLinkvertiseProvider(task) &&
-	!isLinkvertiseUrl(task.url);
+) => publisherId !== null && isLinkvertiseProvider(task);
+
+const destinationUrl = (value: string) => {
+	const raw = value.trim();
+	if (!raw) throw new EarnError('Set a destination URL for this task.', 'INVALID');
+
+	let url: URL;
+	try {
+		url = new URL(raw);
+	} catch {
+		throw new EarnError('The destination URL is invalid.', 'INVALID');
+	}
+
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		throw new EarnError('The destination URL must use HTTP or HTTPS.', 'INVALID');
+	}
+
+	return url.href;
+};
 
 const completionUrl = (
 	task: typeof earnTask.$inferSelect,
@@ -144,7 +159,8 @@ export const listEarnTasks = async (userId: string): Promise<EarnTaskView[]> => 
 					? new Date(lastCompleted.completedAt.getTime() + cooldown * 3600_000).toISOString()
 					: null,
 				startedAt: pending ? pending.startedAt.toISOString() : null,
-				verified: pending?.status === 'verified'
+				verified: pending?.status === 'verified',
+				autoCredit: isLinkvertiseProvider(task)
 			};
 		});
 };
@@ -316,7 +332,10 @@ export const claimEarnTask = async (userId: string, taskId: string) => {
 
 	if (!pending) throw new EarnError('Start this task before claiming it.', 'NOT_FOUND');
 
-	const requiresVerification = Boolean(pending.token);
+	// Linkvertise rewards are always granted by the completion callback, never by
+	// the manual claim button. This also closes the old "claimed without a token"
+	// bypass for tasks created before the destination URL was auto-generated.
+	const requiresVerification = Boolean(pending.token) || isLinkvertiseProvider(task);
 
 	if (requiresVerification && pending.status !== 'verified') {
 		throw new EarnError(
@@ -579,20 +598,25 @@ export const createEarnTask = async (input: {
 	sortOrder?: number;
 }) => {
 	const provider = input.provider?.trim() || 'linkvertise';
+	const usesLinkvertise = provider.toLowerCase() === 'linkvertise';
 
-	if (provider.toLowerCase() === 'linkvertise' && !linkvertiseConfigured()) {
+	if (usesLinkvertise && !linkvertiseConfigured()) {
 		throw new EarnError(
 			'Set a Linkvertise publisher ID in Settings before creating Linkvertise tasks.',
 			'INVALID'
 		);
 	}
 
+	// Linkvertise tasks do not need an admin-supplied destination: the app wraps
+	// its own one-time completion endpoint in a generated Linkvertise link.
+	const url = usesLinkvertise ? '' : destinationUrl(input.url);
+
 	const [created] = await db
 		.insert(earnTask)
 		.values({
 			title: input.title.trim(),
 			description: input.description?.trim() ?? '',
-			url: input.url.trim(),
+			url,
 			provider,
 			reward: Math.max(0, input.reward ?? 0),
 			cooldownHours: Math.max(0, input.cooldownHours ?? 24),
@@ -620,9 +644,16 @@ export const updateEarnTask = async (
 		sortOrder?: number;
 	}
 ) => {
+	const existing = await db.select().from(earnTask).where(eq(earnTask.id, id)).get();
+	if (!existing) throw new EarnError('That task no longer exists.', 'NOT_FOUND');
+
+	const provider =
+		input.provider !== undefined ? input.provider.trim() || 'linkvertise' : existing.provider;
+	const usesLinkvertise = provider.toLowerCase() === 'linkvertise';
+
 	if (
-		input.provider !== undefined &&
-		(input.provider.trim() || 'linkvertise').toLowerCase() === 'linkvertise' &&
+		usesLinkvertise &&
+		(input.provider !== undefined || input.url !== undefined) &&
 		!linkvertiseConfigured()
 	) {
 		throw new EarnError(
@@ -634,8 +665,16 @@ export const updateEarnTask = async (
 	const patch: Partial<typeof earnTask.$inferInsert> = {};
 	if (input.title !== undefined) patch.title = input.title.trim();
 	if (input.description !== undefined) patch.description = input.description.trim();
-	if (input.url !== undefined) patch.url = input.url.trim();
-	if (input.provider !== undefined) patch.provider = input.provider.trim() || 'linkvertise';
+	if (input.provider !== undefined) patch.provider = provider;
+	if (input.url !== undefined || input.provider !== undefined) {
+		if (usesLinkvertise) {
+			patch.url = '';
+		} else if (input.url !== undefined) {
+			patch.url = destinationUrl(input.url);
+		} else {
+			patch.url = destinationUrl(existing.url);
+		}
+	}
 	if (input.reward !== undefined) patch.reward = Math.max(0, input.reward);
 	if (input.cooldownHours !== undefined) patch.cooldownHours = Math.max(0, input.cooldownHours);
 	if (input.minSeconds !== undefined) patch.minSeconds = Math.max(0, input.minSeconds);

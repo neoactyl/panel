@@ -1,16 +1,9 @@
 <script lang="ts">
 	import IconHistory from '@tabler/icons-svelte/icons/history';
+	import { formatDateTime } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	const formatDate = (value: string) =>
-		new Date(value).toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
 </script>
 
 <div class="mb-4">
@@ -32,7 +25,7 @@
 				<p class="mt-0.5 text-xs text-white/50">{activity.detail}</p>
 			</div>
 			<div class="shrink-0 text-right">
-				<p class="text-[11px] text-white/40">{formatDate(activity.timestamp)}</p>
+				<p class="text-[11px] text-white/40">{formatDateTime(activity.timestamp)}</p>
 				<p class="font-mono text-[10px] text-white/25">{activity.ip}</p>
 			</div>
 		</div>

@@ -7,7 +7,10 @@
 	import IconRefresh from '@tabler/icons-svelte/icons/refresh';
 	import { adapter } from '#lib/adapter/client.ts';
 	import { getServerPanel } from '#lib/panel/state.svelte.ts';
+	import * as Table from '#lib/components/ui/table/index.js';
 	import type { Backup } from '#lib/adapter/sdk.ts';
+	import { formatDateTime } from '#lib/format.ts';
+	import { BACKUP_STATUS_STYLES } from '#lib/status.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -15,12 +18,6 @@
 	const panel = getServerPanel();
 
 	let backups = $state<Backup[]>(untrack(() => [...data.backups]));
-
-	const STATUS_STYLES: Record<Backup['status'], string> = {
-		completed: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-		running: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-		failed: 'border-red-500/30 bg-red-500/10 text-red-300'
-	};
 
 	const createBackup = async () => {
 		try {
@@ -66,13 +63,6 @@
 		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 	};
 
-	const formatDate = (value: string) =>
-		new Date(value).toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
 </script>
 
 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -93,39 +83,39 @@
 </div>
 
 <section class="border border-white/10 bg-[#1a1a1a]">
-	<table class="w-full text-left text-sm">
-		<thead>
-			<tr class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
-				<th class="px-4 py-2 font-semibold">Name</th>
-				<th class="px-4 py-2 font-semibold">Size</th>
-				<th class="px-4 py-2 font-semibold">Created</th>
-				<th class="px-4 py-2 font-semibold">Status</th>
-				<th class="px-4 py-2"></th>
-			</tr>
-		</thead>
-		<tbody>
+	<Table.Root class="w-full text-left text-sm">
+		<Table.Header>
+			<Table.Row class="border-b border-white/10 text-[10px] tracking-widest text-white/40 uppercase">
+				<Table.Head class="px-4 py-2 font-semibold">Name</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Size</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Created</Table.Head>
+				<Table.Head class="px-4 py-2 font-semibold">Status</Table.Head>
+				<Table.Head class="px-4 py-2"></Table.Head>
+			</Table.Row>
+		</Table.Header>
+		<Table.Body>
 			{#each backups as backup (backup.id)}
-				<tr class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-					<td class="px-4 py-2.5">
+				<Table.Row class="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+					<Table.Cell class="px-4 py-2.5">
 						<div class="flex items-center gap-2">
 							<IconArchive class="h-4 w-4 shrink-0 text-white/40" />
 							<span class="truncate font-mono text-xs text-white/80">{backup.name}</span>
 						</div>
-					</td>
-					<td class="px-4 py-2.5 font-mono text-xs text-white/40">
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 font-mono text-xs text-white/40">
 						{formatSize(backup.size)}
-					</td>
-					<td class="px-4 py-2.5 text-xs text-white/40">{formatDate(backup.createdAt)}</td>
-					<td class="px-4 py-2.5">
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5 text-xs text-white/40">{formatDateTime(backup.createdAt)}</Table.Cell>
+					<Table.Cell class="px-4 py-2.5">
 						<span
-							class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {STATUS_STYLES[
+							class="border px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase {BACKUP_STATUS_STYLES[
 								backup.status
 							]}"
 						>
 							{backup.status}
 						</span>
-					</td>
-					<td class="px-4 py-2.5">
+					</Table.Cell>
+					<Table.Cell class="px-4 py-2.5">
 						<div class="flex items-center justify-end gap-1">
 							{#each backup.actions ?? [] as action (action)}
 								{#if action === 'download'}
@@ -160,16 +150,16 @@
 								{/if}
 							{/each}
 						</div>
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/each}
 			{#if !backups.length}
-				<tr>
-					<td colspan="5" class="px-4 py-8 text-center text-xs text-white/40">
+				<Table.Row>
+					<Table.Cell colspan={5} class="px-4 py-8 text-center text-xs text-white/40">
 						No backups yet.
-					</td>
-				</tr>
+					</Table.Cell>
+				</Table.Row>
 			{/if}
-		</tbody>
-	</table>
+		</Table.Body>
+	</Table.Root>
 </section>
