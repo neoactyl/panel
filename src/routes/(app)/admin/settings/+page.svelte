@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import IconDeviceFloppy from '@tabler/icons-svelte/icons/device-floppy';
 	import IconCheck from '@tabler/icons-svelte/icons/check';
@@ -23,7 +24,7 @@
 	let activeTab = $state<SettingsTab>('general');
 
 	const { enhance: settingsEnhance, message: settingsMessage, submitting: saving } = superForm(
-		data.settingsForm,
+		untrack(() => data.settingsForm),
 		{ id: 'settings' }
 	);
 

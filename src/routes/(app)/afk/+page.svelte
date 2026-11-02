@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import IconMoon from '@tabler/icons-svelte/icons/moon';
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
 	import IconBolt from '@tabler/icons-svelte/icons/bolt';
@@ -70,7 +70,7 @@
 
 	let { data }: PageProps = $props();
 
-	let current = $state<AfkState>(data.state);
+	let current = $state<AfkState>(untrack(() => data.state));
 	let stateSyncedAt = $state(Date.now());
 	let phase = $state<
 		'idle' | 'requesting' | 'connecting' | 'live' | 'paused' | 'challenge' | 'cooldown' | 'disabled' | 'error'

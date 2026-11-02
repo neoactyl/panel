@@ -1,6 +1,7 @@
 <script lang="ts">
   import logo from '#lib/assets/logo.svg';
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
@@ -25,20 +26,20 @@
 
 	let { data }: PageProps = $props();
 
-	const profile = superForm(data.profileForm, {
+	const profile = superForm(untrack(() => data.profileForm), {
 		id: 'profile',
 		validators: zod4Client(profileSchema)
 	});
-	const panelForm = superForm(data.panelForm, {
+	const panelForm = superForm(untrack(() => data.panelForm), {
 		id: 'panel',
 		validators: zod4Client(panelSchema)
 	});
-	const security = superForm(data.passwordForm, {
+	const security = superForm(untrack(() => data.passwordForm), {
 		id: 'password',
 		validators: zod4Client(passwordSchema)
 	});
-	const revoke = superForm(data.revokeForm, { id: 'revoke' });
-	const signoutForm = superForm(data.signoutForm, { id: 'signout' });
+	const revoke = superForm(untrack(() => data.revokeForm), { id: 'revoke' });
+	const signoutForm = superForm(untrack(() => data.signoutForm), { id: 'signout' });
 
 	const displayName = fieldProxy(profile, 'name');
 	const panelEmail = fieldProxy(panelForm, 'email');

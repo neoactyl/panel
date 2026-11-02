@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import IconArrowLeft from '@tabler/icons-svelte/icons/arrow-left';
 	import type { SuperForm } from 'sveltekit-superforms';
 	import type { SoftwarePolicyFields } from '#lib/schemas.ts';
+	import { adminInputClass } from '#lib/styles.ts';
 
 	let {
 		title,
@@ -21,12 +22,9 @@
 		children?: Snippet;
 	} = $props();
 
-	const { form: fields, enhance, errors, message, submitting } = sf;
+	const { form: fields, enhance, errors, message, submitting } = untrack(() => sf);
 
-	const limitInput =
-		'mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50';
-	const overrideInput =
-		'mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50';
+	const limitInput = `mt-1 ${adminInputClass}`;
 </script>
 
 <div class="space-y-5">
@@ -129,7 +127,7 @@
 						name="dockerImage"
 						bind:value={$fields.dockerImage}
 						placeholder="e.g. ghcr.io/pterodactyl/yolks:java_21"
-						class={overrideInput}
+						class={limitInput}
 					/>
 				</label>
 				<label class="block">
@@ -138,7 +136,7 @@
 						name="startupCommand"
 						bind:value={$fields.startupCommand}
 						placeholder={'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar {{SERVER_JARFILE}}'}
-						class={overrideInput}
+						class={limitInput}
 					/>
 				</label>
 			</div>

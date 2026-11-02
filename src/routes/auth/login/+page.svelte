@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { fly } from 'svelte/transition';
 	import IconBrandDiscord from '@tabler/icons-svelte/icons/brand-discord';
@@ -11,12 +12,12 @@
 
 	let { data }: PageProps = $props();
 
-	const login = superForm(data.loginForm, {
+	const login = superForm(untrack(() => data.loginForm), {
 		id: 'login',
 		validators: zod4Client(loginSchema)
 	});
 
-	const discord = superForm(data.discordForm, { id: 'discord' });
+	const discord = superForm(untrack(() => data.discordForm), { id: 'discord' });
 
 	const email = fieldProxy(login, 'email');
 	const password = fieldProxy(login, 'password');

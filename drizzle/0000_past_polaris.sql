@@ -57,7 +57,8 @@ CREATE TABLE `user` (
 	`role` text,
 	`banned` integer DEFAULT false,
 	`ban_reason` text,
-	`ban_expires` integer
+	`ban_expires` integer,
+	`stripe_customer_id` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
@@ -99,6 +100,12 @@ CREATE TABLE `afk_session` (
 	`earned_today` integer DEFAULT 0 NOT NULL,
 	`day` text DEFAULT '' NOT NULL,
 	`total_earned` integer DEFAULT 0 NOT NULL,
+	`strikes` integer DEFAULT 0 NOT NULL,
+	`cooldown_until` integer,
+	`last_session_id` text,
+	`last_seq` integer DEFAULT 0 NOT NULL,
+	`last_client_ip` text,
+	`last_user_agent` text,
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -110,6 +117,20 @@ CREATE TABLE `credit_account` (
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `credit_topup_option` (
+	`id` text PRIMARY KEY NOT NULL,
+	`label` text NOT NULL,
+	`description` text DEFAULT '' NOT NULL,
+	`badge` text DEFAULT '' NOT NULL,
+	`credits` integer NOT NULL,
+	`price_cents` integer NOT NULL,
+	`enabled` integer DEFAULT true NOT NULL,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `credit_topup_option_sort_idx` ON `credit_topup_option` (`sort_order`,`created_at`);--> statement-breakpoint
 CREATE TABLE `credit_transaction` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -126,6 +147,42 @@ CREATE TABLE `credit_transaction` (
 CREATE UNIQUE INDEX `credit_transaction_reference_unique` ON `credit_transaction` (`reference`);--> statement-breakpoint
 CREATE INDEX `credit_transaction_user_idx` ON `credit_transaction` (`user_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `credit_transaction_created_idx` ON `credit_transaction` (`created_at`);--> statement-breakpoint
+CREATE TABLE `discord_invite_claim` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`inviter_id` text NOT NULL,
+	`invite_count` integer NOT NULL,
+	`reward_coins` integer DEFAULT 0 NOT NULL,
+	`claimed_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `discord_invite_claim_user_idx` ON `discord_invite_claim` (`user_id`,`claimed_at`);--> statement-breakpoint
+CREATE TABLE `discord_j4r_claim` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`discord_id` text NOT NULL,
+	`guild_id` text NOT NULL,
+	`reward_coins` integer DEFAULT 0 NOT NULL,
+	`claimed_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `discord_j4r_claim_user_guild_idx` ON `discord_j4r_claim` (`user_id`,`guild_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `discord_j4r_claim_discord_guild_idx` ON `discord_j4r_claim` (`discord_id`,`guild_id`);--> statement-breakpoint
+CREATE TABLE `discord_membership` (
+	`user_id` text NOT NULL,
+	`guild_id` text NOT NULL,
+	`discord_id` text NOT NULL,
+	`member` integer DEFAULT false NOT NULL,
+	`roles` text DEFAULT '[]' NOT NULL,
+	`verified_at` integer,
+	`last_checked_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	PRIMARY KEY(`user_id`, `guild_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `discord_membership_discord_idx` ON `discord_membership` (`discord_id`);--> statement-breakpoint
 CREATE TABLE `discord_profile` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`discord_id` text NOT NULL,
@@ -191,6 +248,29 @@ CREATE UNIQUE INDEX `error_log_fingerprint_unique` ON `error_log` (`fingerprint`
 CREATE UNIQUE INDEX `error_log_reference_unique` ON `error_log` (`reference`);--> statement-breakpoint
 CREATE INDEX `error_log_created_at_idx` ON `error_log` (`created_at`);--> statement-breakpoint
 CREATE INDEX `error_log_last_seen_idx` ON `error_log` (`last_seen`);--> statement-breakpoint
+CREATE TABLE `invited_users` (
+	`discord_id` text PRIMARY KEY NOT NULL,
+	`inviter_id` text NOT NULL,
+	`guild_id` text DEFAULT '' NOT NULL,
+	`joined_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	`account_created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	`counted` integer DEFAULT false NOT NULL,
+	`still_in_server` integer DEFAULT true NOT NULL,
+	`rewarded_at` integer,
+	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	FOREIGN KEY (`inviter_id`) REFERENCES `inviters`(`discord_id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `invited_users_inviter_idx` ON `invited_users` (`inviter_id`,`counted`);--> statement-breakpoint
+CREATE INDEX `invited_users_guild_idx` ON `invited_users` (`guild_id`);--> statement-breakpoint
+CREATE TABLE `inviters` (
+	`discord_id` text PRIMARY KEY NOT NULL,
+	`current_invite_count` integer DEFAULT 0 NOT NULL,
+	`total_lifetime_invites` integer DEFAULT 0 NOT NULL,
+	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `notification_log` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -342,6 +422,8 @@ CREATE TABLE `user_quota` (
 	`memory` integer,
 	`disk` integer,
 	`max_servers` integer,
+	`max_databases` integer,
+	`max_allocations` integer,
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );

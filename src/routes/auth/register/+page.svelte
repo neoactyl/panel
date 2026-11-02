@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { fly } from 'svelte/transition';
 	import IconUser from '@tabler/icons-svelte/icons/user';
@@ -12,7 +13,7 @@
 
 	let { data }: PageProps = $props();
 
-	const register = superForm(data.registerForm, {
+	const register = superForm(untrack(() => data.registerForm), {
 		id: 'register',
 		validators: zod4Client(registerSchema)
 	});

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import IconActivity from '@tabler/icons-svelte/icons/activity';
 	import IconDatabase from '@tabler/icons-svelte/icons/database';
 	import IconRefresh from '@tabler/icons-svelte/icons/refresh';
@@ -9,7 +10,7 @@
 	let { data }: PageProps = $props();
 
 	const { enhance: resetEnhance, message: resetMessage, submitting: resetting } = superForm(
-		data.resetForm,
+		untrack(() => data.resetForm),
 		{ id: 'reset' }
 	);
 

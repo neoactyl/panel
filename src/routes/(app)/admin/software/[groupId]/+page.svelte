@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import SoftwarePolicyForm from '#lib/components/admin/SoftwarePolicyForm.svelte';
 	import { softwarePolicySchema } from '#lib/schemas.ts';
@@ -8,12 +9,12 @@
 
 	let { data }: PageProps = $props();
 
-	const policySf = superForm(data.policyForm, {
+	const policySf = superForm(untrack(() => data.policyForm), {
 		id: 'policy',
 		validators: zod4Client(softwarePolicySchema)
 	});
 
-	const { enhance: resetEnhance, submitting: resetting } = superForm(data.resetForm, {
+	const { enhance: resetEnhance, submitting: resetting } = superForm(untrack(() => data.resetForm), {
 		id: 'reset'
 	});
 </script>

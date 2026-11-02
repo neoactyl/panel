@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import StorefrontItemForm from '#lib/components/admin/StorefrontItemForm.svelte';
 	import { storefrontItemSchema } from '#lib/schemas.ts';
@@ -7,7 +8,7 @@
 
 	let { data }: PageProps = $props();
 
-	const itemSf = superForm(data.itemForm, {
+	const itemSf = superForm(untrack(() => data.itemForm), {
 		id: 'item',
 		validators: zod4Client(storefrontItemSchema)
 	});

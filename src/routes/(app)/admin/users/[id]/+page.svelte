@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm, fieldProxy } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { grantSchema, userQuotaSchema } from '#lib/schemas.ts';
 	import { formatDateOrDash, formatMegabytes } from '#lib/format.ts';
@@ -12,7 +13,7 @@
 
 	let { data }: PageProps = $props();
 
-	const quotaSf = superForm(data.quotaForm, {
+	const quotaSf = superForm(untrack(() => data.quotaForm), {
 		id: 'quota',
 		validators: zod4Client(userQuotaSchema)
 	});
@@ -24,7 +25,7 @@
 	const quotaMaxDatabases = fieldProxy(quotaSf, 'maxDatabases');
 	const quotaMaxAllocations = fieldProxy(quotaSf, 'maxAllocations');
 
-	const grant = superForm(data.grantForm, {
+	const grant = superForm(untrack(() => data.grantForm), {
 		id: 'grant',
 		validators: zod4Client(grantSchema)
 	});

@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import IconArrowLeft from '@tabler/icons-svelte/icons/arrow-left';
 	import IconPlus from '@tabler/icons-svelte/icons/plus';
 	import type { SuperForm } from 'sveltekit-superforms';
 	import type { StorefrontItemFields } from '#lib/schemas.ts';
+	import { adminInputClass } from '#lib/styles.ts';
 	import { Button } from '#lib/components/ui/button/index.js';
 
 	let {
@@ -20,7 +22,7 @@
     isEditing?: boolean;
 	} = $props();
 
-	const { form: fields, enhance, message, submitting } = sf;
+	const { form: fields, enhance, message, submitting } = untrack(() => sf);
 
 	const availableSoftware = $derived(
 		$fields.softwareGroup
@@ -28,8 +30,7 @@
 			: software
 	);
 
-	const inputClass =
-		'mt-1 w-full border border-white/10 bg-[#121212] px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50';
+	const inputClass = `mt-1 ${adminInputClass}`;
 </script>
 
 <div class="space-y-5">

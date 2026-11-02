@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
+	import { untrack } from 'svelte';
 	import IconShieldLock from '@tabler/icons-svelte/icons/shield-lock';
 	import IconUser from '@tabler/icons-svelte/icons/user';
 	import IconBan from '@tabler/icons-svelte/icons/ban';
@@ -10,9 +11,9 @@
 
 	let { data }: PageProps = $props();
 
-	const { enhance: enhanceRole, message: roleMessage } = superForm(data.roleForm, { id: 'role' });
-	const { enhance: enhanceBan, message: banMessage } = superForm(data.banForm, { id: 'ban' });
-	const { enhance: enhanceDelete, message: deleteMessage } = superForm(data.deleteForm, { id: 'delete' });
+	const { enhance: enhanceRole, message: roleMessage } = superForm(untrack(() => data.roleForm), { id: 'role' });
+	const { enhance: enhanceBan, message: banMessage } = superForm(untrack(() => data.banForm), { id: 'ban' });
+	const { enhance: enhanceDelete, message: deleteMessage } = superForm(untrack(() => data.deleteForm), { id: 'delete' });
 </script>
 
 <svelte:head>
