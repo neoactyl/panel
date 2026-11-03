@@ -657,11 +657,10 @@ const connect = async (token: string): Promise<Client | null> => {
 const start = async (): Promise<Client | null> => {
   const { getBool, getSetting, loadSettings } =
     await import("#lib/server/config/settings.ts");
-  const { serverEnv } = await import("#lib/server/config/env.ts");
 
   const { ids, count } = readShardConfig(
-    serverEnv.DISCORD_SHARD_IDS,
-    serverEnv.DISCORD_SHARD_COUNT,
+    process.env.DISCORD_SHARD_IDS,
+    process.env.DISCORD_SHARD_COUNT,
   );
 
   state.shardIds = ids;
@@ -678,10 +677,10 @@ const start = async (): Promise<Client | null> => {
   }
 
   const token =
-    (serverEnv.DISCORD_BOT_TOKEN ?? "").trim() ||
+    (process.env.DISCORD_BOT_TOKEN ?? "").trim() ||
     getSetting("discord.botToken").trim();
   const trackedGuildIds = readTrackedGuildIds(
-    (serverEnv.DISCORD_GUILD_ID ?? "").trim(),
+    (process.env.DISCORD_GUILD_ID ?? "").trim(),
     getSetting("discord.guildId"),
     getSetting("discord.j4rGuildIds"),
   );

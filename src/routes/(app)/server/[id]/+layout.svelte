@@ -33,9 +33,15 @@
 		unknown: []
 	};
 
-	const availableActions = $derived(
-		server.actions.filter((action) => ACTIONS_BY_STATE[panel.powerState].includes(action))
-	);
+	const availableActions = $derived.by(() => {
+		const allowed = ACTIONS_BY_STATE[panel.powerState] ?? [];
+		if (!allowed.length) return [];
+
+		// Adapter action lists can be stale after a power transition; fall back to
+		// the actions that are valid for the current state so buttons never vanish.
+		const filtered = allowed.filter((action) => panel.actions.includes(action));
+		return filtered.length ? filtered : allowed;
+	});
 
 	const ACTION_LABELS = {
 		start: 'Start',
@@ -53,6 +59,14 @@
 
 	$effect(() => {
 		if (data.prompts.length) panelPrompts.push(...data.prompts);
+	});
+
+	$effect(() => {
+		const id = setInterval(() => {
+			if (document.visibilityState === 'visible') void panel.refresh();
+		}, 5000);
+
+		return () => clearInterval(id);
 	});
 
 	$effect(() => {

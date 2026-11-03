@@ -8,6 +8,7 @@ export function createServerPanel(
 	initialAllocations: Allocation[]
 ) {
 	let powerState = $state<ServerState>(server.state);
+	let actions = $state<ServerAction[]>([...server.actions]);
 	let powerPending = $state(false);
 	let lines = $state<ConsoleLine[]>([...initialLines]);
 	let notice = $state('');
@@ -33,6 +34,19 @@ export function createServerPanel(
 		noticeTimer = setTimeout(() => (notice = ''), 2500);
 	};
 
+	const applyServer = (next: Server) => {
+		powerState = next.state;
+		actions = [...next.actions];
+	};
+
+	const refresh = async () => {
+		try {
+			applyServer(await adapter.getServer(server.id));
+		} catch {
+			/* keep the last known state on transient errors */
+		}
+	};
+
 	const runPower = async (action: ServerAction) => {
 		if (powerPending) return;
 		powerPending = true;
@@ -44,14 +58,14 @@ export function createServerPanel(
 			else if (action === 'restart') await adapter.restartServer(server.id);
 			else await adapter.killServer(server.id);
 
-			powerState = action === 'stop' || action === 'kill' ? 'offline' : 'running';
+			await refresh();
 			pushLine({
 				level: 'INFO',
 				text: `Container ${action} completed successfully`
 			});
 		} catch (cause) {
 			showNotice(cause instanceof Error ? cause.message : 'Power action failed.');
-			powerState = server.state;
+			await refresh();
 		} finally {
 			powerPending = false;
 		}
@@ -63,6 +77,9 @@ export function createServerPanel(
 		},
 		get powerState() {
 			return powerState;
+		},
+		get actions() {
+			return actions;
 		},
 		get powerPending() {
 			return powerPending;
@@ -80,6 +97,7 @@ export function createServerPanel(
 			return address;
 		},
 		power: runPower,
+		refresh,
 		setPowerState: (state: ServerState) => (powerState = state),
 		pushLine,
 		syncLines,

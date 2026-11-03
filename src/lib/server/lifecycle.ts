@@ -1,8 +1,6 @@
-import { building } from '$app/env';
 import { maybeRunRenewals } from '#lib/server/billing/billing.ts';
 import { ensureOperationalSchema } from '#lib/server/db/bootstrap.ts';
 import { loadSettings } from '#lib/server/config/settings.ts';
-import { serverEnv } from '#lib/server/config/env.ts';
 import { startDiscordBot, stopDiscordBot } from '#lib/server/discord/bot.ts';
 import { logError } from '#lib/server/system/logs.ts';
 import { createBanner } from '#lib/taag.ts';
@@ -19,7 +17,7 @@ let renewalsTimer: ReturnType<typeof setInterval> | undefined;
  */
 const embeddedBotEnabled = () =>
 	!['0', 'false', 'no', 'off'].includes(
-		(serverEnv.DISCORD_EMBED_BOT ?? 'true').trim().toLowerCase()
+		(process.env.DISCORD_EMBED_BOT ?? 'true').trim().toLowerCase()
 	);
 
 const fireAndForget = (fn: () => unknown, label = 'background task') => {
@@ -62,9 +60,13 @@ const runRenewalsOnce = async () => {
 
 const RENEWALS_INTERVAL_MS = 60_000;
 
-/** Start background work once, on the first request rather than at import time. */
+/**
+ * Start background work once. Production calls this from `server.ts` before
+ * the HTTP server starts accepting traffic, so renewals never depend on the
+ * first request; the dev server calls it from the lifecycle Vite plugin.
+ */
 export const initializeServer = () => {
-	if (building || initialized) return;
+	if (initialized) return;
 	initialized = true;
 
 	console.log(createBanner());

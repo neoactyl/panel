@@ -20,11 +20,14 @@ Neoactyl is a SvelteKit application with a single long-lived Node/Bun process. T
 
 Most requests go through `src/hooks.server.ts`:
 
-1. Start one-time server initialization (`initializeServer`).
-2. Apply a rate limiter to sensitive endpoints.
-3. Ensure the operational schema exists and load cached settings.
-4. Resolve the Better Auth session and attach the user to `event.locals`.
-5. Delegate to SvelteKit, then add security headers and record timing metrics.
+1. Apply a rate limiter to sensitive endpoints.
+2. Ensure the operational schema exists and load cached settings.
+3. Resolve the Better Auth session and attach the user to `event.locals`.
+4. Delegate to SvelteKit, then add security headers and record timing metrics.
+
+One-time server initialization (`initializeServer`) runs from `server.ts` in
+production and from the lifecycle Vite plugin in development. It is not tied to
+the first web request.
 
 Unexpected errors are captured by `handleError`, stored in the error log, and shown to the user with a reference ID.
 
@@ -74,7 +77,9 @@ The database is accessed with Drizzle ORM over libSQL. There are two schema sour
 
 ## Background work
 
-`src/lib/server/lifecycle.ts` starts background work on the first request, not at import time:
+`src/lib/server/lifecycle.ts` starts background work when the process starts:
+`server.ts` calls it in production and the lifecycle Vite plugin calls it for
+the dev server.
 
 - **Renewals** run roughly every minute. Renewals may suspend or delete servers according to the configured interval and grace period.
 - **Discord bot** starts in the web process when `DISCORD_EMBED_BOT` is enabled. It can instead run separately with `bun run bot`.

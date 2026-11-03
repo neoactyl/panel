@@ -1,5 +1,4 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { serverEnv } from '../config/env.ts';
 
 const PREFIX = 'v1';
 const ALGORITHM = 'aes-256-gcm';
@@ -7,7 +6,17 @@ const IV_BYTES = 12;
 
 const derive = (value: string) => createHash('sha256').update(value, 'utf8').digest();
 
-const key = () => derive(serverEnv.SETTINGS_ENCRYPTION_KEY ?? serverEnv.BETTER_AUTH_SECRET);
+// Use `process.env` directly so this module keeps working when it is reached
+// from the production entry point, which loads before SvelteKit's env helper.
+const key = () => {
+	const secret = process.env.SETTINGS_ENCRYPTION_KEY || process.env.BETTER_AUTH_SECRET;
+
+	if (!secret) {
+		throw new Error('SETTINGS_ENCRYPTION_KEY or BETTER_AUTH_SECRET must be set.');
+	}
+
+	return derive(secret);
+};
 
 const split = (value: string) => value.split(':');
 

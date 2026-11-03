@@ -8,7 +8,6 @@ import { serverEnv } from '#lib/server/config/env.ts';
 import { logActivity, logError } from '#lib/server/system/logs.ts';
 import { recordRequest } from '#lib/server/system/metrics.ts';
 import { getPanelUserId, panelAuthEnabled } from '#lib/server/auth/panel-auth.ts';
-import { initializeServer } from '#lib/server/lifecycle.ts';
 import { getNumber, loadSettings } from '#lib/server/config/settings.ts';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 
@@ -78,8 +77,6 @@ const withSecurityHeaders = (response: Response) => {
 };
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
-	initializeServer();
-
 	const limiter = limiterFor(event.request.method, event.url.pathname);
 
 	if (limiter) {
