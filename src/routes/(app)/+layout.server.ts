@@ -6,6 +6,7 @@ import { syncDiscordMembership } from '#lib/server/integrations/discord.ts';
 import { getBranding, getPublicSettings } from '#lib/server/config/settings.ts';
 import { getRenewalSettings } from '#lib/server/billing/billing.ts';
 import { getCreditBalance } from '#lib/server/billing/credits.ts';
+import { getUserSetting } from '#lib/server/db/user-settings.ts';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -26,13 +27,15 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	const publicSettings = getPublicSettings();
 	const renewal = getRenewalSettings();
 	const credits = renewal.enabled ? await getCreditBalance(locals.user.id) : null;
+	const perUserSound = await getUserSetting(locals.user.id, 'soundEnabled');
 
 	return {
 		user: locals.user,
 		isAdmin: isAdmin(locals.user),
-		branding: getBranding(),
+		branding: publicSettings.branding,
 		nav: publicSettings.nav,
 		features: publicSettings.features,
+		soundEnabled: perUserSound && (publicSettings.ui?.soundEnabled ?? true),
 		credits,
 		currency: renewal.currency,
 		appBlueprint

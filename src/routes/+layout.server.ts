@@ -10,8 +10,11 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		redirect(307, '/setup');
 	}
 
+	const publicSettings = getPublicSettings();
+
 	return {
-		...getPublicSettings(),
-		isAdmin: isAdmin(locals.user)
+		...publicSettings,
+		isAdmin: isAdmin(locals.user),
+		soundEnabled: publicSettings.ui?.soundEnabled ?? true
 	};
 };

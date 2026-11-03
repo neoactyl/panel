@@ -14,6 +14,11 @@ const statements = [
 		max_allocations INTEGER,
 		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
+	sql`CREATE TABLE IF NOT EXISTS user_settings (
+		user_id TEXT PRIMARY KEY NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+		sound_enabled INTEGER NOT NULL DEFAULT 1,
+		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
 	sql`CREATE TABLE IF NOT EXISTS activity_log (
 		id TEXT PRIMARY KEY NOT NULL,
 		user_id TEXT REFERENCES user(id) ON DELETE SET NULL,

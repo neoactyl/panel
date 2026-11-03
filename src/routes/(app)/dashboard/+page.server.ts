@@ -3,6 +3,7 @@ import { getAuth } from '#lib/server/auth/auth.ts';
 import { getAdapter, getAdapterForUser } from '#lib/server/panel/adapter.ts';
 import { panelAuthEnabled } from '#lib/server/auth/panel-auth.ts';
 import { getEffectiveQuota } from '#lib/server/quota/user.ts';
+import { setUserSetting } from '#lib/server/db/user-settings.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -30,5 +31,17 @@ export const actions: Actions = {
 	signout: async ({ request }) => {
 		await getAuth().api.signOut({ headers: request.headers });
 		redirect(302, '/auth/login');
+	},
+	saveSettings: async ({ locals, request }) => {
+		if (!locals.user) {
+			return { error: 'Not authenticated.' };
+		}
+
+		const data = await request.formData();
+		const soundEnabled = String(data.get('soundEnabled') ?? '') === 'on';
+
+		await setUserSetting(locals.user.id, 'soundEnabled', soundEnabled);
+
+		return { success: 'Settings saved.' };
 	}
 };

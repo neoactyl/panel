@@ -88,6 +88,7 @@ export const SETTING_DEFAULTS = {
 	'afk.bindSessionToUserAgent': 'true',
 	'afk.dayResetHourUtc': '0',
 	'tasks.enabled': 'true',
+	'ui.soundEnabled': 'true',
 	'tasks.defaultReward': '10',
 	'tasks.cooldownHours': '24',
 	'tasks.linkvertiseUserId': '',
@@ -280,6 +281,9 @@ export const getPublicSettings = () => ({
     gifts: getBool("credits.enabled") && getBool("credits.giftEnabled"),
     invites: getBool("invites.enabled"),
     addons: getBool("addons.enabled"),
+  },
+  ui: {
+    soundEnabled: getBool("ui.soundEnabled"),
   },
 });
 

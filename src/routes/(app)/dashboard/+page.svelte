@@ -8,7 +8,10 @@
 	import IconServer from '@tabler/icons-svelte/icons/server';
 	import IconChevronRight from '@tabler/icons-svelte/icons/chevron-right';
 	import IconArrowRight from '@tabler/icons-svelte/icons/arrow-right';
+	import IconVolume from '@tabler/icons-svelte/icons/volume';
+	import IconVolume2 from '@tabler/icons-svelte/icons/volume-2';
 	import { SERVER_STATE_STYLES } from '#lib/status.ts';
+	import { message } from 'sveltekit-superforms';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -222,13 +225,48 @@
 							</div>
 						</a>
 					{/each}
-				</div>
+				</div>		{:else}
+			<div class="flex flex-col items-center gap-3 border border-white/10 bg-[#1a1a1a] py-14 text-center">
+				<IconServer class="h-8 w-8 text-white/20" />
+				<p class="text-sm text-white/50">No servers yet. Create your first one to get started.</p>
+			</div>
+		{/if}
+	</section>
+
+	<section
+		in:fly={{ y: 16, duration: 350, delay: 240, easing: cubicOut }}
+		class="mt-8 border border-white/10 bg-[#242424] p-5"
+	>
+		<form method="POST" action="?/saveSettings">
+			<div class="mb-3 flex items-center justify-between">
+				<h2 class="text-xs font-semibold tracking-widest text-white/50 uppercase">Preferences</h2>
+				<button
+					type="submit"
+					class="flex items-center gap-1.5 border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold tracking-widest text-white/70 transition hover:bg-white/10"
+				>
+					Save
+				</button>
+			</div>
+			<div class="mt-4 flex items-center justify-between">
+				<label class="flex items-center gap-3">
+					<span class="text-sm text-white/70">UI sounds</span>
+					<span class="relative mt-1">
+			{#if data.soundEnabled}
+				<IconVolume2 class="h-4 w-4 text-indigo-400" />
 			{:else}
-				<div class="flex flex-col items-center gap-3 border border-white/10 bg-[#1a1a1a] py-14 text-center">
-					<IconServer class="h-8 w-8 text-white/20" />
-					<p class="text-sm text-white/50">No servers yet. Create your first one to get started.</p>
-				</div>
+				<IconVolume class="h-4 w-4 text-white/30" />
 			{/if}
-		</section>
+						<input
+							type="checkbox"
+							name="soundEnabled"
+							checked={data.soundEnabled}
+							class="sr-only"
+						/>
+					</span>
+					<span class="text-xs text-white/40">Sound feedback for actions</span>
+				</label>
+			</div>
+		</form>
+	</section>
 	</div>
 </div>

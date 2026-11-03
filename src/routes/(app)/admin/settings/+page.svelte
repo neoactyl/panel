@@ -143,6 +143,10 @@
 				<Checkbox name="auth.registration" checked={checked('auth.registration')} />
 			</label>
 			<label class={toggleRow}>
+				<span class="text-sm text-white/70">Enable UI sounds</span>
+				<Checkbox name="ui.soundEnabled" checked={checked('ui.soundEnabled')} />
+			</label>
+			<label class={toggleRow}>
 				<span class="text-sm text-white/70">Show AFK page</span>
 				<Checkbox name="nav.afk" checked={checked('nav.afk')} />
 			</label>
