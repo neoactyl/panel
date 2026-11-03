@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { getBool } from '#lib/server/config/settings.ts';
 import {
+	ensureServerBillings,
 	getRenewalSettings,
 	getServerBilling,
 	listServerBillings,
@@ -22,10 +23,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const adapter = getUserAdapter(locals.panelUserId);
 	const renewal = getRenewalSettings();
-	const [servers, billings] = await Promise.all([
+	const [servers, currentBillings] = await Promise.all([
 		adapter.getServers(),
 		listServerBillings(locals.user.id)
 	]);
+
+	await ensureServerBillings(
+		servers.map((server) => server.id),
+		locals.user.id
+	);
+
+	const billings = renewal.enabled
+		? await listServerBillings(locals.user.id)
+		: currentBillings;
 
 	return {
 		servers,

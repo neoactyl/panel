@@ -47,6 +47,62 @@ export const getServerBilling = async (serverId: string) =>
 export const listServerBillings = async (userId: string) =>
 	db.select().from(serverBilling).where(eq(serverBilling.userId, userId));
 
+/**
+ * Create billing rows for servers that predate renewals being enabled.
+ *
+ * Without this, only servers created after `credits.enabled` was switched on
+ * have billing records, so existing servers never show a renewal option. It
+ * also repairs zero-price records left behind when the default renewal price
+ * was still 0 at creation time.
+ */
+export const ensureServerBillings = async (serverIds: string[], userId: string) => {
+	const settings = getRenewalSettings();
+	if (!settings.enabled || serverIds.length === 0) return;
+
+	const existing = await db
+		.select()
+		.from(serverBilling)
+		.where(eq(serverBilling.userId, userId));
+	const byServer = new Map(existing.map((billing) => [billing.serverId, billing]));
+	const now = new Date();
+
+	for (const serverId of serverIds) {
+		const billing = byServer.get(serverId);
+
+		if (!billing) {
+			await createServerBilling({
+				serverId,
+				userId,
+				intervalDays: settings.intervalDays,
+				baseRenewalPrice: settings.defaultRenewalPrice,
+				renewalPrice: settings.defaultRenewalPrice,
+				autoRenew: false
+			});
+			continue;
+		}
+
+		const repair =
+			billing.status === 'active' &&
+			billing.baseRenewalPrice <= 0 &&
+			billing.renewalPrice <= 0 &&
+			settings.defaultRenewalPrice > 0;
+
+		if (!repair) continue;
+
+		await db
+			.update(serverBilling)
+			.set({
+				intervalDays: settings.intervalDays,
+				baseRenewalPrice: settings.defaultRenewalPrice,
+				renewalPrice: settings.defaultRenewalPrice,
+				nextRenewalAt: addDays(now, settings.intervalDays),
+				updatedAt: now
+			})
+			.where(eq(serverBilling.id, billing.id))
+			.run();
+	}
+};
+
 export const createServerBilling = async ({
 	serverId,
 	userId,

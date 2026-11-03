@@ -396,7 +396,7 @@ export const actions: Actions = {
     const values: Partial<Record<SettingKey, string>> = {};
 
     for (const key of SETTING_KEYS) {
-      if (key === "brand.logo") continue;
+      if (key === "brand.logo" || isSecretSetting(key)) continue;
 
       if (booleanKeys.has(key)) {
         values[key] = data[key] === true ? "true" : "false";

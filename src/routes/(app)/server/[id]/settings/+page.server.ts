@@ -1,6 +1,7 @@
 ﻿import { fail } from '@sveltejs/kit';
 import { AdapterError, type Server } from '#lib/adapter/sdk.ts';
 import {
+	ensureServerBillings,
 	getRenewalSettings,
 	getServerBilling,
 	renewBillingNow,
@@ -20,6 +21,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const empty = { quota: null, remaining: null, billing: null, renewal };
 
 	if (!locals.session || !locals.user) return empty;
+
+	await ensureServerBillings([params.id], locals.user.id);
 
 	const billing = await getServerBilling(params.id);
 	const ownedBilling = billing && billing.userId === locals.user.id ? billing : null;
