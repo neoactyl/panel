@@ -232,41 +232,5 @@
 			</div>
 		{/if}
 	</section>
-
-	<section
-		in:fly={{ y: 16, duration: 350, delay: 240, easing: cubicOut }}
-		class="mt-8 border border-white/10 bg-[#242424] p-5"
-	>
-		<form method="POST" action="?/saveSettings">
-			<div class="mb-3 flex items-center justify-between">
-				<h2 class="text-xs font-semibold tracking-widest text-white/50 uppercase">Preferences</h2>
-				<button
-					type="submit"
-					class="flex items-center gap-1.5 border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold tracking-widest text-white/70 transition hover:bg-white/10"
-				>
-					Save
-				</button>
-			</div>
-			<div class="mt-4 flex items-center justify-between">
-				<label class="flex items-center gap-3">
-					<span class="text-sm text-white/70">UI sounds</span>
-					<span class="relative mt-1">
-			{#if data.soundEnabled}
-				<IconVolume2 class="h-4 w-4 text-indigo-400" />
-			{:else}
-				<IconVolume class="h-4 w-4 text-white/30" />
-			{/if}
-						<input
-							type="checkbox"
-							name="soundEnabled"
-							checked={data.soundEnabled}
-							class="sr-only"
-						/>
-					</span>
-					<span class="text-xs text-white/40">Sound feedback for actions</span>
-				</label>
-			</div>
-		</form>
-	</section>
 	</div>
 </div>
