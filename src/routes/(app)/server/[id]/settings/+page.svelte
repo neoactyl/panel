@@ -17,6 +17,9 @@
 
 	const panel = getServerPanel();
 	const server = $derived(data.server);
+	const restricted = $derived(
+		Boolean((data as { billingAccess?: { restricted?: boolean } }).billingAccess?.restricted)
+	);
 	let now = $state(Date.now());
 	const renewalWindow = $derived(data.billing ? getRenewalWindow(data.billing, now) : null);
 
@@ -82,12 +85,12 @@
 	</div>
 {/if}
 
+{#if !restricted}
 <section class="border border-white/10 bg-[#1a1a1a] p-6">
 	<div class="mb-5 flex items-center gap-2 text-white/50">
 		<IconSettings class="h-4 w-4" />
 		<span class="text-xs font-semibold tracking-widest uppercase">Configuration</span>
 	</div>
-
 	<form onsubmit={saveSettings} class="flex max-w-lg flex-col gap-4">
 		<label class="flex flex-col gap-1.5">
 			<span class="text-xs font-semibold tracking-widest text-white/40 uppercase">Name</span>
@@ -240,6 +243,7 @@
 		</div>
 	</form>
 </section>
+{/if}
 
 {#if data.renewal.enabled && data.billing && data.billing.status !== 'deleted'}
 	<section class="mt-4 border border-white/10 bg-[#1a1a1a] p-6">
@@ -312,13 +316,15 @@
 	</p>
 
 	<div class="mt-4 flex flex-wrap items-center gap-2">
-		<button
-			type="button"
-			onclick={reinstall}
-			class="border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10"
-		>
-			Reinstall server
-		</button>
+		{#if !restricted}
+			<button
+				type="button"
+				onclick={reinstall}
+				class="border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+			>
+				Reinstall server
+			</button>
+		{/if}
 
 		{#if confirmingDelete}
 			<button

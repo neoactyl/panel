@@ -22,12 +22,14 @@
 		server,
 		user,
 		pages = [],
-		features = {}
+		features = {},
+		restricted = false
 	}: {
 		server: { id: string; name: string; node: string };
 		user: { name: string | null; email: string; role?: string | null };
 		pages?: PanelPage[];
 		features?: Record<string, boolean>;
+		restricted?: boolean;
 	} = $props();
 
 	const groups = $derived(
@@ -57,7 +59,9 @@
 			.map((group) => ({
 				...group,
 				items: group.items.filter(
-					(item) => features[item.slug || 'console'] !== false
+					(item) =>
+						features[item.slug || 'console'] !== false &&
+						(!restricted || item.slug === 'settings')
 				)
 			}))
 			.filter((group) => group.items.length > 0)
@@ -71,6 +75,8 @@
 	const hrefFor = (slug: string) => (slug ? `${base}/${slug}` : base);
 
 	const extensionGroups = $derived.by(() => {
+		if (restricted) return [];
+
 		const groups = new Map<string, PanelPage[]>();
 
 		for (const item of [...pages]

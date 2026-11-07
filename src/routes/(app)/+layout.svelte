@@ -29,13 +29,23 @@
 	const serverFeatures = $derived(
 		(page.data.serverFeatures as Record<string, boolean> | undefined) ?? {}
 	);
+
+	const billingRestricted = $derived(
+		Boolean((page.data as { billingAccess?: { restricted?: boolean } }).billingAccess?.restricted)
+	);
 </script>
 
 <GridBackground />
 
 <Sidebar.Provider>
 	{#if server}
-		<ServerSidebar {server} user={data.user} pages={serverPages} features={serverFeatures} />
+		<ServerSidebar
+			{server}
+			user={data.user}
+			pages={serverPages}
+			features={serverFeatures}
+			restricted={billingRestricted}
+		/>
 	{:else if page.url.pathname.startsWith('/admin')}
 		<AdminSidebar user={data.user} branding={data.branding} />
 	{:else}

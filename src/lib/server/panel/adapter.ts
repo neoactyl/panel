@@ -8,6 +8,7 @@ import {
 	type PanelScope
 } from '#lib/adapter/sdk.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
+import { getServerBillingAccess } from '#lib/server/billing/access.ts';
 import { getPanelConfig } from '#lib/server/config/settings.ts';
 import { Calagopus } from './calagopus.ts';
 import { MockAdapter } from './mock.ts';
@@ -242,6 +243,58 @@ export const getAdapterForUser = (panelUserId: string): Adapter => {
 		: guardAdapter(base);
 };
 
+// Server methods that must keep working while a server is suspended: reading
+// it so the UI can show the suspension, and deleting it entirely.
+const BILLING_UNRESTRICTED_METHODS = new Set(['getServer', 'deleteServer']);
+
+const billingGuardedAdapters = new WeakMap<Adapter, Adapter>();
+
+/**
+ * Lock a server down once billing has suspended it or its renewal date passed.
+ *
+ * A panel-side suspend alone is not enough: an expired server must not be
+ * startable through the console or the adapter API either. Only renewal (a
+ * direct billing operation), deletion, and loading the server itself remain
+ * available until the server is renewed.
+ */
+const billingGuardAdapter = (base: Adapter): Adapter => {
+	const cached = billingGuardedAdapters.get(base);
+	if (cached) return cached;
+
+	const wrapped = new Proxy(base, {
+		get(target, property, receiver) {
+			const value = Reflect.get(target, property, receiver);
+
+			if (typeof value !== 'function' || typeof property !== 'string') return value;
+
+			if (!SERVER_METHODS.has(property) || BILLING_UNRESTRICTED_METHODS.has(property)) {
+				return function passThrough(this: unknown, ...args: unknown[]) {
+					return value.apply(target, args);
+				};
+			}
+
+			return async function guardedServerMethod(this: unknown, serverId: string, ...args: unknown[]) {
+				const access = await getServerBillingAccess(serverId);
+
+				if (access.restricted) {
+					throw new AdapterError(
+						access.reason === 'deleted'
+							? 'This server has been deleted.'
+							: 'This server is suspended. Renew it to restore access.',
+						'UNAUTHORIZED',
+						403
+					);
+				}
+
+				return value.apply(target, [serverId, ...args]);
+			};
+		}
+	}) as Adapter;
+
+	billingGuardedAdapters.set(base, wrapped);
+	return wrapped;
+};
+
 export const getUserAdapter = (panelUserId?: string): Adapter => {
 	const base = getAdapter();
 
@@ -249,7 +302,7 @@ export const getUserAdapter = (panelUserId?: string): Adapter => {
 	// linked panel user. The `panel.linkAccounts` setting only controls
 	// automatic linking during login; it must never make every user share the
 	// admin token and therefore control each other's servers.
-	if (!base.capabilities.accounts.link) return base;
+	if (!base.capabilities.accounts.link) return billingGuardAdapter(base);
 
 	if (!panelUserId) {
 		error(403, {
@@ -257,5 +310,5 @@ export const getUserAdapter = (panelUserId?: string): Adapter => {
 		});
 	}
 
-	return getAdapterForUser(panelUserId);
+	return billingGuardAdapter(getAdapterForUser(panelUserId));
 };

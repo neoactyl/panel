@@ -250,7 +250,7 @@ export class Calagopus extends Adapter {
       create: true,
       update: true,
       delete: true,
-      suspend: false,
+      suspend: true,
       power: true,
     },
     console: { commands: true, history: true, websocket: true },
@@ -944,6 +944,18 @@ export class Calagopus extends Adapter {
     await this.#jsonRequest(`/api/admin/servers/${id}`, "DELETE", {
       force: false,
       delete_backups: true,
+    });
+  }
+
+  override async suspendServer(id: string): Promise<void> {
+    await this.#jsonRequest(`/api/admin/servers/${id}`, "PATCH", {
+      suspended: true,
+    });
+  }
+
+  override async unsuspendServer(id: string): Promise<void> {
+    await this.#jsonRequest(`/api/admin/servers/${id}`, "PATCH", {
+      suspended: false,
     });
   }
 

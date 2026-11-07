@@ -16,6 +16,7 @@
 	let { children, data }: LayoutProps = $props();
 
 	const server = $derived(data.server);
+	const restricted = $derived(data.billingAccess?.restricted ?? false);
 	const panel = createServerPanel(
 		untrack(() => server),
 		untrack(() => data.consoleLines),
@@ -34,6 +35,7 @@
 	};
 
 	const availableActions = $derived.by(() => {
+		if (restricted) return [];
 		const allowed = ACTIONS_BY_STATE[panel.powerState] ?? [];
 		if (!allowed.length) return [];
 
@@ -145,6 +147,27 @@
 			class="mb-4 border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-medium text-indigo-200"
 		>
 			{panel.notice}
+		</div>
+	{/if}
+
+	{#if restricted}
+		<div
+			class="mb-4 flex flex-wrap items-center justify-between gap-3 border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-200"
+		>
+			<span>
+				This server is {data.billingAccess?.reason === 'deleted'
+					? 'deleted'
+					: data.billingAccess?.reason === 'expired'
+						? 'expired'
+						: 'suspended'}.
+				Renew it to restore console and management access.
+			</span>
+			<a
+				href="/server/{server.id}/settings"
+				class="border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-amber-100 transition hover:bg-amber-500/20"
+			>
+				Renew or delete
+			</a>
 		</div>
 	{/if}
 
