@@ -5,6 +5,10 @@ import { user } from "#lib/server/db/auth.schema.ts";
 import { db } from "#lib/server/db/index.ts";
 import { resetAdapter } from "#lib/server/panel/adapter.ts";
 import {
+  DEFAULT_PANEL_ADAPTER,
+  findPanelAdapter,
+} from "#lib/adapter/registry.ts";
+import {
   getPanelConfig,
   loadSettings,
   updateSettings,
@@ -46,7 +50,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       appName: "Neoactyl",
       description: "",
       logo: "",
-      adapter: panel.adapter === "calagopus" ? "calagopus" : "mock",
+      adapter: findPanelAdapter(panel.adapter)?.id ?? DEFAULT_PANEL_ADAPTER,
       panelUrl: panel.url ?? "",
       panelToken: panel.token ?? "",
     },
@@ -76,6 +80,8 @@ export const actions: Actions = {
     const adapter = str(form, "adapter");
     const panelUrl = str(form, "panelUrl");
     const panelToken = str(form, "panelToken");
+    const adapterDefinition =
+      findPanelAdapter(adapter) ?? findPanelAdapter(DEFAULT_PANEL_ADAPTER)!;
 
     if (!name || !email || !password || !confirmPassword) {
       return fail(400, { error: "All fields are required." });
@@ -95,24 +101,22 @@ export const actions: Actions = {
       return fail(400, { error: "That email already exists. Sign in first." });
     }
 
-    if (adapter === "calagopus") {
-      if (!/^https?:\/\/.+/i.test(panelUrl)) {
-        return fail(400, {
-          error: "A valid Calagopus panel URL is required.",
-        });
-      }
-      if (!panelToken) {
-        return fail(400, {
-          error: "A panel API token is required for Calagopus.",
-        });
-      }
+    if (adapterDefinition.requiresUrl && !/^https?:\/\/.+/i.test(panelUrl)) {
+      return fail(400, {
+        error: `A valid ${adapterDefinition.label} panel URL is required.`,
+      });
+    }
+    if (adapterDefinition.requiresToken && !panelToken) {
+      return fail(400, {
+        error: `A panel API token is required for ${adapterDefinition.label}.`,
+      });
     }
 
     await updateSettings({
       "brand.name": appName,
       "brand.logo": logo,
       "brand.description": description,
-      "panel.adapter": adapter,
+      "panel.adapter": adapterDefinition.id,
       "panel.url": panelUrl,
       "panel.token": !panelToken ? getPanelConfig().token : panelToken,
     });

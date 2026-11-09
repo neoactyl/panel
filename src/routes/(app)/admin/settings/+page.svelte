@@ -169,10 +169,11 @@
 			<div>
 				<label class={label} for="panel.adapter">Adapter</label>
 				<select id="panel.adapter" name="panel.adapter" class={input}>
-					<option value="mock" selected={data.current['panel.adapter'] === 'mock'}>Mock</option>
-					<option value="calagopus" selected={data.current['panel.adapter'] === 'calagopus'}>
-						Calagopus
-					</option>
+					{#each data.adapters as adapter}
+						<option value={adapter.id} selected={data.current['panel.adapter'] === adapter.id}>
+							{adapter.label}
+						</option>
+					{/each}
 				</select>
 			</div>
 			<div>
@@ -193,7 +194,9 @@
 				name="panel.token"
 				type="password"
 				class={input}
-				placeholder={data.tokenSet ? 'Leave blank to keep the current token' : 'Required for Calagopus'}
+				placeholder={data.tokenSet
+					? 'Leave blank to keep the current token'
+					: 'Required for adapters that use an API token'}
 			/>
 			{#if data.tokenSet}
 				<label class="mt-2 flex items-center gap-2 text-xs text-white/50">

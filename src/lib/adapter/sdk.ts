@@ -521,7 +521,7 @@ export abstract class Adapter {
   }
 
   abstract connect(): Promise<boolean>;
-  abstract getServers(): Promise<Server[]>;
+  abstract getServers(panelUserId?: string): Promise<Server[]>;
   abstract getServer(id: string): Promise<Server>;
   abstract createServer(input: CreateServer): Promise<Server>;
   abstract listSoftwares(): Promise<Software[]>;

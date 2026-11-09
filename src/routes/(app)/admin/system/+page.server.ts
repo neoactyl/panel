@@ -6,6 +6,7 @@ import { user } from '#lib/server/db/auth.schema.ts';
 import { activityLog, creditTransaction, errorLog } from '#lib/server/db/ops.ts';
 import { getMetrics, resetMetrics } from '#lib/server/system/metrics.ts';
 import { getNumber, getPanelConfig } from '#lib/server/config/settings.ts';
+import { findPanelAdapter } from '#lib/adapter/registry.ts';
 import { emptySchema } from '#lib/schemas.ts';
 import { message, superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
@@ -39,6 +40,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 
 	const panel = getPanelConfig();
+	const adapter = findPanelAdapter(panel.adapter);
 	let servers = 0;
 	let reachable = false;
 
@@ -56,7 +58,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		resetForm: await superValidate(zod4(emptySchema), { id: 'reset' }),
 		slowThreshold: getNumber('monitor.slowMs'),
 		database,
-		panel: { adapter: panel.adapter, reachable },
+		panel: { adapter: adapter?.label ?? panel.adapter, reachable },
 		counts: {
 			users: users?.value ?? 0,
 			servers,

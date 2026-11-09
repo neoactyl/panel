@@ -3,6 +3,7 @@ import { getAdapter } from '#lib/server/panel/adapter.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/auth.schema.ts';
 import { getPanelConfig, getQuota, getSetting } from '#lib/server/config/settings.ts';
+import { findPanelAdapter } from '#lib/adapter/registry.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -15,6 +16,7 @@ export const load: PageServerLoad = async () => {
 	const admins = adminCount[0]?.admins ?? 0;
 
 	const panel = getPanelConfig();
+	const adapter = findPanelAdapter(panel.adapter);
 	let servers = 0;
 	let reachable = false;
 
@@ -28,8 +30,11 @@ export const load: PageServerLoad = async () => {
 	return {
 		counts: { users, admins, servers },
 		panel: {
-			adapter: panel.adapter,
-			configured: panel.adapter === 'mock' || Boolean(panel.url && panel.token),
+			adapter: adapter?.label ?? panel.adapter,
+			configured:
+				adapter !== undefined &&
+				(!adapter.requiresUrl || Boolean(panel.url)) &&
+				(!adapter.requiresToken || Boolean(panel.token)),
 			reachable
 		},
 		quota: getQuota(),

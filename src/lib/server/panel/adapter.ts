@@ -10,8 +10,8 @@ import {
 import { logActivity } from '#lib/server/system/logs.ts';
 import { getServerBillingAccess } from '#lib/server/billing/access.ts';
 import { getPanelConfig } from '#lib/server/config/settings.ts';
-import { Calagopus } from './calagopus.ts';
-import { MockAdapter } from './mock.ts';
+import { DEFAULT_PANEL_ADAPTER, findPanelAdapter } from '#lib/adapter/registry.ts';
+import { createPanelAdapter } from './adapters.ts';
 
 let adapter: Adapter | undefined;
 let guarded: Adapter | undefined;
@@ -24,9 +24,19 @@ export const resetAdapter = () => {
 const rawAdapter = (): Adapter => {
 	if (!adapter) {
 		const { adapter: kind, url, token } = getPanelConfig();
+		const definition = findPanelAdapter(kind);
 
+		// Unknown or incomplete configurations fall back to the default adapter
+		// so the panel stays usable while an administrator fixes the settings.
 		adapter = assertAdapterContract(
-			kind === 'calagopus' && url && token ? new Calagopus(url, token) : new MockAdapter()
+			createPanelAdapter(
+				definition &&
+					(!definition.requiresUrl || Boolean(url)) &&
+					(!definition.requiresToken || Boolean(token))
+					? definition.id
+					: DEFAULT_PANEL_ADAPTER,
+				{ url, token }
+			)
 		);
 	}
 
@@ -158,7 +168,7 @@ const SERVER_METHODS = new Set([
 
 const ownership = new Map<string, { owner: string | null; expires: number }>();
 
-const ownedAdapter = (target: Calagopus, panelUserId: string): Adapter => {
+const ownedAdapter = (target: Adapter, panelUserId: string): Adapter => {
 	const ensureOwned = async (serverId: string) => {
 		const cached = ownership.get(serverId);
 		let owner: string | null;
@@ -238,7 +248,7 @@ const ownedAdapter = (target: Calagopus, panelUserId: string): Adapter => {
 export const getAdapterForUser = (panelUserId: string): Adapter => {
 	const base = rawAdapter();
 
-	return base instanceof Calagopus
+	return base.capabilities.accounts.link
 		? guardAdapter(ownedAdapter(base, panelUserId))
 		: guardAdapter(base);
 };

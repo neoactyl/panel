@@ -2,6 +2,12 @@ import { Buffer } from "node:buffer";
 import { z } from "zod";
 import { resetAdapter } from "#lib/server/panel/adapter.ts";
 import { requireAdmin } from "#lib/server/auth/admin.ts";
+import {
+  DEFAULT_PANEL_ADAPTER,
+  PANEL_ADAPTERS,
+  PANEL_ADAPTER_IDS,
+  findPanelAdapter,
+} from "#lib/adapter/registry.ts";
 import { logActivity } from "#lib/server/system/logs.ts";
 import {
   BOOLEAN_SETTINGS,
@@ -303,7 +309,7 @@ for (const key of SETTING_KEYS) {
       .trim()
       .max(160, "The description is too long.");
   } else if (key === "panel.adapter") {
-    settingsShape[key] = z.enum(["mock", "calagopus"], {
+    settingsShape[key] = z.enum(PANEL_ADAPTER_IDS, {
       message: "Choose a valid panel adapter.",
     });
   } else if (key === "discord.inviteTiers") {
@@ -360,6 +366,7 @@ export const load: PageServerLoad = async () => {
       label: feature.label,
     })),
     booleans: BOOLEAN_SETTINGS,
+    adapters: PANEL_ADAPTERS,
     extraSections: extraSections.map((section) => ({
       ...section,
       fields: section.fields.map((field) => {
@@ -439,18 +446,33 @@ export const actions: Actions = {
 
     const nextToken = values["panel.token"] ?? currentToken;
 
-    if (values["panel.adapter"] === "calagopus") {
-      if (!/^https?:\/\/.+/i.test(values["panel.url"] ?? "")) {
-        return message(form, { status: "error", text: "A valid Calagopus panel URL is required." }, {
-          status: 400,
-        });
-      }
+    const adapterDefinition = findPanelAdapter(
+      values["panel.adapter"] ?? DEFAULT_PANEL_ADAPTER,
+    );
 
-      if (!nextToken) {
-        return message(form, { status: "error", text: "A panel API token is required for Calagopus." }, {
-          status: 400,
-        });
-      }
+    if (
+      adapterDefinition?.requiresUrl &&
+      !/^https?:\/\/.+/i.test(values["panel.url"] ?? "")
+    ) {
+      return message(
+        form,
+        {
+          status: "error",
+          text: `A valid ${adapterDefinition.label} panel URL is required.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (adapterDefinition?.requiresToken && !nextToken) {
+      return message(
+        form,
+        {
+          status: "error",
+          text: `A panel API token is required for ${adapterDefinition.label}.`,
+        },
+        { status: 400 },
+      );
     }
 
     const logoEntry = fd.get("logoFile");

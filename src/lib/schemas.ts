@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PANEL_ADAPTER_IDS } from "#lib/adapter/registry.ts";
 
 /** Schema for button-only forms (no fields, e.g. sign out / revoke sessions). */
 export const emptySchema = z.object({});
@@ -33,7 +34,7 @@ export const setupSettingsSchema = z.object({
     .max(48, "The app name must be 48 characters or fewer."),
   description: z.string().trim().max(160, "The description is too long."),
   logo: z.string().trim(),
-  adapter: z.enum(["mock", "calagopus"]),
+  adapter: z.enum(PANEL_ADAPTER_IDS),
   panelUrl: z.string().trim(),
   panelToken: z.string().optional().default(""),
 });
@@ -55,7 +56,7 @@ export const setupCreateSchema = z
       .max(48, "The app name must be 48 characters or fewer."),
     description: z.string().trim().max(160, "The description is too long."),
     logo: z.string().trim(),
-    adapter: z.enum(["mock", "calagopus"]),
+    adapter: z.enum(PANEL_ADAPTER_IDS),
     panelUrl: z.string().trim(),
     panelToken: z.string().optional().default(""),
   })
