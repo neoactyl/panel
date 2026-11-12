@@ -131,6 +131,20 @@
 						checked={data.smtp.requireTls}
 					/>
 				</label>
+				<label class="flex items-center justify-between gap-4 border border-white/10 bg-[#121212] px-3 py-2.5">
+					<span>
+						<span class="block text-sm text-white/70">Disable STARTTLS</span>
+						<span class="mt-0.5 block text-[11px] text-white/35">
+							Send in plaintext even if the server offers STARTTLS.
+						</span>
+					</span>
+					<input
+						type="checkbox"
+						name="smtp.ignoreTls"
+						class={checkbox}
+						checked={data.smtp.ignoreTls}
+					/>
+				</label>
 			</div>
 
 			<div class="grid gap-4 sm:grid-cols-2">
