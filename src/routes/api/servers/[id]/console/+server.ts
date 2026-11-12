@@ -1,8 +1,9 @@
-import { error } from '@sveltejs/kit';
-import { WebSocket, type RawData } from 'ws';
-import { AdapterError, type WebsocketCredentials } from '#lib/adapter/sdk.ts';
-import { getUserAdapter } from '#lib/server/panel/adapter.ts';
-import type { RequestHandler } from './$types';
+import { error } from "@sveltejs/kit";
+import { WebSocket, type RawData } from "ws";
+import { AdapterError, type WebsocketCredentials } from "#lib/adapter/sdk.ts";
+import { getUserAdapter } from "#lib/server/panel/adapter.ts";
+import { serverFeatureEnabled } from "#lib/server/config/settings.ts";
+import type { RequestHandler } from "./$types";
 
 const AUTH_TIMEOUT_MS = 15_000;
 const HEARTBEAT_MS = 15_000;
@@ -10,298 +11,311 @@ const RECONNECT_DELAY_MS = 2_000;
 const RETRY_CREDENTIALS_MS = 5_000;
 
 type PanelPayload = {
-	event?: string;
-	args?: unknown[];
+  event?: string;
+  args?: unknown[];
 };
 
 const asText = (data: RawData): string => {
-	if (typeof data === 'string') return data;
+  if (typeof data === "string") return data;
 
-	if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
 
-	if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
 
-	return data.toString('utf8');
+  return data.toString("utf8");
 };
 
 export const GET: RequestHandler = async ({ params, locals, request }) => {
-	if (!locals.session || !locals.user) {
-		error(401, { message: 'Unauthorized' });
-	}
+  if (!locals.session || !locals.user) {
+    error(401, { message: "Unauthorized" });
+  }
 
-	const adapter = getUserAdapter(locals.panelUserId);
+  if (!serverFeatureEnabled("console")) {
+    error(404, { message: "This feature is disabled." });
+  }
 
-	if (!adapter.capabilities.console.websocket) {
-		error(404, { message: 'Console streaming is not supported by this adapter.' });
-	}
+  const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
-	let credentials: WebsocketCredentials;
+  if (!adapter.capabilities.console.websocket) {
+    error(404, {
+      message: "Console streaming is not supported by this adapter.",
+    });
+  }
 
-	try {
-		credentials = await adapter.getWebsocket(params.id);
-	} catch (cause) {
-		if (cause instanceof AdapterError) {
-			error(cause.statusCode ?? 502, { message: cause.message });
-		}
+  let credentials: WebsocketCredentials;
 
-		throw cause;
-	}
+  try {
+    credentials = await adapter.getWebsocket(params.id);
+  } catch (cause) {
+    if (cause instanceof AdapterError) {
+      error(cause.statusCode ?? 502, { message: cause.message });
+    }
 
-	const encoder = new TextEncoder();
-	let stop: (() => void) | null = null;
+    throw cause;
+  }
 
-	const stream = new ReadableStream<Uint8Array>({
-		start(controller) {
-			let socket: WebSocket | null = null;
-			let heartbeat: ReturnType<typeof setInterval> | null = null;
-			let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-			let authTimer: ReturnType<typeof setTimeout> | null = null;
-			let done = false;
-			let refreshCredentials = false;
-			let connecting = false;
+  const encoder = new TextEncoder();
+  let stop: (() => void) | null = null;
 
-			const send = (payload: unknown) => {
-				if (done) return;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let socket: WebSocket | null = null;
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
+      let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+      let authTimer: ReturnType<typeof setTimeout> | null = null;
+      let done = false;
+      let refreshCredentials = false;
+      let connecting = false;
 
-				try {
-					controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-				} catch {
-					finish();
-				}
-			};
+      const send = (payload: unknown) => {
+        if (done) return;
 
-			const sendToPanel = (payload: unknown) => {
-				const current = socket;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
+          );
+        } catch {
+          finish();
+        }
+      };
 
-				if (!current || current.readyState !== WebSocket.OPEN) return;
+      const sendToPanel = (payload: unknown) => {
+        const current = socket;
 
-				try {
-					current.send(JSON.stringify(payload));
-				} catch {
-					/* the close handler reconnects */
-				}
-			};
+        if (!current || current.readyState !== WebSocket.OPEN) return;
 
-			const closeSocket = () => {
-				const current = socket;
+        try {
+          current.send(JSON.stringify(payload));
+        } catch {
+          /* the close handler reconnects */
+        }
+      };
 
-				if (!current) return;
+      const closeSocket = () => {
+        const current = socket;
 
-				try {
-					current.close();
-				} catch {
-					current.terminate();
-				}
-			};
+        if (!current) return;
 
-			const clearAuthTimer = () => {
-				if (authTimer) clearTimeout(authTimer);
-				authTimer = null;
-			};
+        try {
+          current.close();
+        } catch {
+          current.terminate();
+        }
+      };
 
-			const finish = () => {
-				if (done) return;
-				done = true;
+      const clearAuthTimer = () => {
+        if (authTimer) clearTimeout(authTimer);
+        authTimer = null;
+      };
 
-				if (heartbeat) clearInterval(heartbeat);
-				if (reconnectTimer) clearTimeout(reconnectTimer);
-				clearAuthTimer();
+      const finish = () => {
+        if (done) return;
+        done = true;
 
-				heartbeat = null;
-				reconnectTimer = null;
+        if (heartbeat) clearInterval(heartbeat);
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        clearAuthTimer();
 
-				request.signal.removeEventListener('abort', finish);
+        heartbeat = null;
+        reconnectTimer = null;
 
-				const current = socket;
-				socket = null;
+        request.signal.removeEventListener("abort", finish);
 
-				if (current) {
-					current.removeAllListeners();
-					try {
-						current.terminate();
-					} catch {
-						/* already closed */
-					}
-				}
+        const current = socket;
+        socket = null;
 
-				try {
-					controller.close();
-				} catch {
-					/* already closed */
-				}
-			};
+        if (current) {
+          current.removeAllListeners();
+          try {
+            current.terminate();
+          } catch {
+            /* already closed */
+          }
+        }
 
-			const scheduleReconnect = (delay = RECONNECT_DELAY_MS) => {
-				if (done || reconnectTimer) return;
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      };
 
-				reconnectTimer = setTimeout(() => {
-					reconnectTimer = null;
-					void connect();
-				}, delay);
-			};
+      const scheduleReconnect = (delay = RECONNECT_DELAY_MS) => {
+        if (done || reconnectTimer) return;
 
-			const checkPrompts = (output: string) => {
-				void adapter
-					.getPanelPrompts('server', params.id, { output })
-					.then((prompts) => {
-						if (!done && prompts.length) send({ event: 'prompt', prompts });
-					})
-					.catch(() => {
-						/* prompts are best-effort */
-					});
-			};
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          void connect();
+        }, delay);
+      };
 
-			const onMessage = (data: RawData) => {
-				let payload: PanelPayload;
+      const checkPrompts = (output: string) => {
+        void adapter
+          .getPanelPrompts("server", params.id, { output })
+          .then((prompts) => {
+            if (!done && prompts.length) send({ event: "prompt", prompts });
+          })
+          .catch(() => {
+            /* prompts are best-effort */
+          });
+      };
 
-				try {
-					payload = JSON.parse(asText(data)) as PanelPayload;
-				} catch {
-					return;
-				}
+      const onMessage = (data: RawData) => {
+        let payload: PanelPayload;
 
-				if (!payload || typeof payload !== 'object') return;
+        try {
+          payload = JSON.parse(asText(data)) as PanelPayload;
+        } catch {
+          return;
+        }
 
-				const args = Array.isArray(payload.args) ? payload.args.map(String) : [];
+        if (!payload || typeof payload !== "object") return;
 
-				switch (payload.event) {
-					case 'auth success':
-						clearAuthTimer();
-						send({ event: 'ready' });
+        const args = Array.isArray(payload.args)
+          ? payload.args.map(String)
+          : [];
 
-						// Wings defaults to text frames, but pin the mode so the
-						// stream stays JSON even if the node was configured
-						// differently for another connection.
-						sendToPanel({ event: 'configure socket', args: ['transmission mode', 'text'] });
-						sendToPanel({ event: 'send logs' });
-						sendToPanel({ event: 'send status' });
-						sendToPanel({ event: 'send stats' });
-						break;
-					case 'console output':
-					case 'install output': {
-						send({ event: payload.event, args });
+        switch (payload.event) {
+          case "auth success":
+            clearAuthTimer();
+            send({ event: "ready" });
 
-						const output = args.join('');
-						if (/eula/i.test(output)) checkPrompts(output);
+            // Wings defaults to text frames, but pin the mode so the
+            // stream stays JSON even if the node was configured
+            // differently for another connection.
+            sendToPanel({
+              event: "configure socket",
+              args: ["transmission mode", "text"],
+            });
+            sendToPanel({ event: "send logs" });
+            sendToPanel({ event: "send status" });
+            sendToPanel({ event: "send stats" });
+            break;
+          case "console output":
+          case "install output": {
+            send({ event: payload.event, args });
 
-						break;
-					}
-					case 'status':
-						send({ event: 'status', args });
-						if (args[0] === 'running') sendToPanel({ event: 'send stats' });
-						break;
-					case 'stats':
-						send({ event: 'stats', args });
-						break;
-					case 'token expiring':
-					case 'token expired':
-					case 'jwt error':
-						refreshCredentials = true;
-						send({ event: payload.event, args });
-						closeSocket();
-						break;
-					case 'daemon error':
-						send({ event: payload.event, args });
-						closeSocket();
-						break;
-					default:
-						send({ event: payload.event, args });
-				}
-			};
+            const output = args.join("");
+            if (/eula/i.test(output)) checkPrompts(output);
 
-			const connect = async () => {
-				if (done || connecting || socket) return;
+            break;
+          }
+          case "status":
+            send({ event: "status", args });
+            if (args[0] === "running") sendToPanel({ event: "send stats" });
+            break;
+          case "stats":
+            send({ event: "stats", args });
+            break;
+          case "token expiring":
+          case "token expired":
+          case "jwt error":
+            refreshCredentials = true;
+            send({ event: payload.event, args });
+            closeSocket();
+            break;
+          case "daemon error":
+            send({ event: payload.event, args });
+            closeSocket();
+            break;
+          default:
+            send({ event: payload.event, args });
+        }
+      };
 
-				connecting = true;
+      const connect = async () => {
+        if (done || connecting || socket) return;
 
-				try {
-					if (refreshCredentials) {
-						try {
-							credentials = await adapter.getWebsocket(params.id);
-							refreshCredentials = false;
-						} catch {
-							scheduleReconnect(RETRY_CREDENTIALS_MS);
-							return;
-						}
-					}
+        connecting = true;
 
-					if (done) return;
+        try {
+          if (refreshCredentials) {
+            try {
+              credentials = await adapter.getWebsocket(params.id);
+              refreshCredentials = false;
+            } catch {
+              scheduleReconnect(RETRY_CREDENTIALS_MS);
+              return;
+            }
+          }
 
-					let next: WebSocket;
+          if (done) return;
 
-					try {
-						next = new WebSocket(credentials.url, {
-							handshakeTimeout: AUTH_TIMEOUT_MS,
-							perMessageDeflate: false
-						});
-					} catch {
-						scheduleReconnect(RETRY_CREDENTIALS_MS);
-						return;
-					}
+          let next: WebSocket;
 
-					socket = next;
+          try {
+            next = new WebSocket(credentials.url, {
+              handshakeTimeout: AUTH_TIMEOUT_MS,
+              perMessageDeflate: false,
+            });
+          } catch {
+            scheduleReconnect(RETRY_CREDENTIALS_MS);
+            return;
+          }
 
-					authTimer = setTimeout(() => {
-						if (socket === next) {
-							try {
-								next.terminate();
-							} catch {
-								/* close handler reconnects */
-							}
-						}
-					}, AUTH_TIMEOUT_MS);
+          socket = next;
 
-					next.on('open', () => {
-						sendToPanel({ event: 'auth', args: [credentials.token] });
-					});
+          authTimer = setTimeout(() => {
+            if (socket === next) {
+              try {
+                next.terminate();
+              } catch {
+                /* close handler reconnects */
+              }
+            }
+          }, AUTH_TIMEOUT_MS);
 
-					next.on('message', onMessage);
+          next.on("open", () => {
+            sendToPanel({ event: "auth", args: [credentials.token] });
+          });
 
-					next.on('error', () => {
-						/* the close handler reconnects */
-					});
+          next.on("message", onMessage);
 
-					next.on('close', () => {
-						clearAuthTimer();
+          next.on("error", () => {
+            /* the close handler reconnects */
+          });
 
-						if (socket === next) socket = null;
+          next.on("close", () => {
+            clearAuthTimer();
 
-						// The token may have expired while connected, so always
-						// request fresh credentials before the next attempt.
-						refreshCredentials = true;
+            if (socket === next) socket = null;
 
-						if (!done) scheduleReconnect();
-					});
-				} finally {
-					connecting = false;
-				}
-			};
+            // The token may have expired while connected, so always
+            // request fresh credentials before the next attempt.
+            refreshCredentials = true;
 
-			heartbeat = setInterval(() => {
-				if (done) return;
+            if (!done) scheduleReconnect();
+          });
+        } finally {
+          connecting = false;
+        }
+      };
 
-				try {
-					controller.enqueue(encoder.encode(': ping\n\n'));
-				} catch {
-					finish();
-				}
-			}, HEARTBEAT_MS);
+      heartbeat = setInterval(() => {
+        if (done) return;
 
-			stop = finish;
-			request.signal.addEventListener('abort', finish, { once: true });
+        try {
+          controller.enqueue(encoder.encode(": ping\n\n"));
+        } catch {
+          finish();
+        }
+      }, HEARTBEAT_MS);
 
-			void connect();
-		},
-		cancel() {
-			stop?.();
-		}
-	});
+      stop = finish;
+      request.signal.addEventListener("abort", finish, { once: true });
 
-	return new Response(stream, {
-		headers: {
-			'content-type': 'text/event-stream',
-			'cache-control': 'no-cache, no-transform',
-			'x-accel-buffering': 'no'
-		}
-	});
+      void connect();
+    },
+    cancel() {
+      stop?.();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
 };

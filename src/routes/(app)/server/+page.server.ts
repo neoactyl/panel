@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		redirect(307, '/server/create');
 	}
 
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 	const renewal = getRenewalSettings();
 	const [servers, currentBillings] = await Promise.all([
 		adapter.getServers(),

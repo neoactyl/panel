@@ -76,7 +76,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'The install directory must be an absolute path.' });
 		}
 
-		const adapter = getUserAdapter(locals.panelUserId);
+		const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 		try {
 			const entry = await installAddon(adapter, params.id, {

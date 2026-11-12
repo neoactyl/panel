@@ -4,7 +4,11 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
 import { serverEnv } from '#lib/server/config/env.ts';
-import { getSetting } from '#lib/server/config/settings.ts';
+import { getBool, getSetting } from '#lib/server/config/settings.ts';
+import {
+  sendEventEmail,
+  sendTemplateEmail,
+} from '#lib/server/email/mailer.ts';
 import { admin } from 'better-auth/plugins';
 import { stripe as stripePlugin } from '@better-auth/stripe';
 import {
@@ -35,6 +39,16 @@ const stripeRuntime = () => {
   return { client, webhookSecret: credentials.webhookSecret };
 };
 
+/**
+ * Send transactional email without holding up the auth request. SMTP can take
+ * up to the configured timeout, which must not delay sign-up or reset flows.
+ */
+const sendEmailInBackground = (label: string, send: () => Promise<unknown>) => {
+  void send().catch((cause) => {
+    console.error(`Unable to send the ${label} email.`, cause);
+  });
+};
+
 const buildAuth = (
   discord: { clientId: string; clientSecret: string } | null,
   stripe: ReturnType<typeof stripeRuntime>,
@@ -48,6 +62,55 @@ const buildAuth = (
       enabled: true,
       minPasswordLength: 8,
       maxPasswordLength: 128,
+      requireEmailVerification: getBool("auth.requireEmailVerification"),
+      resetPasswordTokenExpiresIn: 60 * 60,
+      sendResetPassword: async ({ user: recipient, url }) => {
+        sendEmailInBackground('password reset', () =>
+          sendEventEmail("email.events.passwordReset", {
+            to: recipient.email,
+            variables: {
+              userName: recipient.name,
+              userEmail: recipient.email,
+              resetUrl: url,
+              expiresIn: "1 hour",
+            },
+          }),
+        );
+      },
+    },
+    emailVerification: {
+      // Verification is mandatory when the admin requires it, so the email
+      // must still go out even if the optional event toggle is off.
+      sendOnSignUp:
+        getBool("email.events.emailVerification") ||
+        getBool("auth.requireEmailVerification"),
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60,
+      sendVerificationEmail: async ({ user: recipient, url }) => {
+        const variables = {
+          userName: recipient.name,
+          userEmail: recipient.email,
+          verificationUrl: url,
+          expiresIn: "1 hour",
+        };
+
+        if (getBool("auth.requireEmailVerification")) {
+          sendEmailInBackground('email verification', () =>
+            sendTemplateEmail("email-verification", {
+              to: recipient.email,
+              variables,
+            }),
+          );
+          return;
+        }
+
+        sendEmailInBackground('email verification', () =>
+          sendEventEmail("email.events.emailVerification", {
+            to: recipient.email,
+            variables,
+          }),
+        );
+      },
     },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
@@ -60,6 +123,8 @@ const buildAuth = (
       customRules: {
         "/sign-in/email": { window: 60, max: 10 },
         "/sign-up/email": { window: 60, max: 5 },
+        "/request-password-reset": { window: 60, max: 5 },
+        "/send-verification-email": { window: 60, max: 5 },
       },
     },
     advanced: {
@@ -102,7 +167,9 @@ const runtimeKey = (discord: ReturnType<typeof discordCredentials>) => {
     ? `${discord.clientId}:${discord.clientSecret}`
     : "";
 
-  return `${discordKey}|${stripe.secretKey}|${stripe.webhookSecret}`;
+  return `${discordKey}|${stripe.secretKey}|${stripe.webhookSecret}|${getBool(
+    "auth.requireEmailVerification",
+  )}|${getBool("email.events.emailVerification")}`;
 };
 
 const initialDiscord = discordCredentials();

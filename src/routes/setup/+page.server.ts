@@ -53,6 +53,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       adapter: findPanelAdapter(panel.adapter)?.id ?? DEFAULT_PANEL_ADAPTER,
       panelUrl: panel.url ?? "",
       panelToken: panel.token ?? "",
+      panelClientToken: panel.clientToken ?? "",
     },
     branding: {
       name: "Neoactyl",
@@ -68,6 +69,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
   setup: async (event) => {
+    // Form actions are not protected by `load`, so the "already set up" guard
+    // must live here too. Without it, anyone can POST to /setup after the panel
+    // is initialised and overwrite the panel adapter URL/token and branding.
+    if (await hasAdmin()) {
+      return fail(403, { error: "Setup has already been completed." });
+    }
+
+    if ((await userCount()) > 0) {
+      return fail(403, { error: "Setup has already been completed." });
+    }
+
     const form = await event.request.formData();
 
     const name = str(form, "name");
@@ -80,6 +92,7 @@ export const actions: Actions = {
     const adapter = str(form, "adapter");
     const panelUrl = str(form, "panelUrl");
     const panelToken = str(form, "panelToken");
+    const panelClientToken = str(form, "panelClientToken");
     const adapterDefinition =
       findPanelAdapter(adapter) ?? findPanelAdapter(DEFAULT_PANEL_ADAPTER)!;
 
@@ -119,6 +132,9 @@ export const actions: Actions = {
       "panel.adapter": adapterDefinition.id,
       "panel.url": panelUrl,
       "panel.token": !panelToken ? getPanelConfig().token : panelToken,
+      "panel.clientToken": !panelClientToken
+        ? getPanelConfig().clientToken
+        : panelClientToken,
     });
     await loadSettings(true);
     resetAdapter();
@@ -139,7 +155,8 @@ export const actions: Actions = {
 
     if (!oldest || oldest.id !== created.user.id) {
       return fail(409, {
-        error: "Another account was created first. Sign in with the first account.",
+        error:
+          "Another account was created first. Sign in with the first account.",
       });
     }
 

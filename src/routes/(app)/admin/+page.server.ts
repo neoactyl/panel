@@ -1,46 +1,53 @@
-import { count, eq } from 'drizzle-orm';
-import { getAdapter } from '#lib/server/panel/adapter.ts';
-import { db } from '#lib/server/db/index.ts';
-import { user } from '#lib/server/db/auth.schema.ts';
-import { getPanelConfig, getQuota, getSetting } from '#lib/server/config/settings.ts';
-import { findPanelAdapter } from '#lib/adapter/registry.ts';
-import type { PageServerLoad } from './$types';
+import { count, eq } from "drizzle-orm";
+import { requireAdmin } from "#lib/server/auth/admin.ts";
+import { getAdapter } from "#lib/server/panel/adapter.ts";
+import { db } from "#lib/server/db/index.ts";
+import { user } from "#lib/server/db/auth.schema.ts";
+import {
+  getPanelConfig,
+  getQuota,
+  getSetting,
+} from "#lib/server/config/settings.ts";
+import { findPanelAdapter } from "#lib/adapter/registry.ts";
+import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async () => {
-	const [userCount, adminCount] = await Promise.all([
-		db.select({ users: count() }).from(user),
-		db.select({ admins: count() }).from(user).where(eq(user.role, 'admin'))
-	]);
+export const load: PageServerLoad = async ({ locals }) => {
+  requireAdmin(locals);
 
-	const users = userCount[0]?.users ?? 0;
-	const admins = adminCount[0]?.admins ?? 0;
+  const [userCount, adminCount] = await Promise.all([
+    db.select({ users: count() }).from(user),
+    db.select({ admins: count() }).from(user).where(eq(user.role, "admin")),
+  ]);
 
-	const panel = getPanelConfig();
-	const adapter = findPanelAdapter(panel.adapter);
-	let servers = 0;
-	let reachable = false;
+  const users = userCount[0]?.users ?? 0;
+  const admins = adminCount[0]?.admins ?? 0;
 
-	try {
-		servers = (await getAdapter().getServers()).length;
-		reachable = true;
-	} catch {
-		reachable = false;
-	}
+  const panel = getPanelConfig();
+  const adapter = findPanelAdapter(panel.adapter);
+  let servers = 0;
+  let reachable = false;
 
-	return {
-		counts: { users, admins, servers },
-		panel: {
-			adapter: adapter?.label ?? panel.adapter,
-			configured:
-				adapter !== undefined &&
-				(!adapter.requiresUrl || Boolean(panel.url)) &&
-				(!adapter.requiresToken || Boolean(panel.token)),
-			reachable
-		},
-		quota: getQuota(),
-		branding: {
-			name: getSetting('brand.name'),
-			logo: getSetting('brand.logo')
-		}
-	};
+  try {
+    servers = (await getAdapter().getServers()).length;
+    reachable = true;
+  } catch {
+    reachable = false;
+  }
+
+  return {
+    counts: { users, admins, servers },
+    panel: {
+      adapter: adapter?.label ?? panel.adapter,
+      configured:
+        adapter !== undefined &&
+        (!adapter.requiresUrl || Boolean(panel.url)) &&
+        (!adapter.requiresToken || Boolean(panel.token)),
+      reachable,
+    },
+    quota: getQuota(),
+    branding: {
+      name: getSetting("brand.name"),
+      logo: getSetting("brand.logo"),
+    },
+  };
 };

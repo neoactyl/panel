@@ -365,7 +365,8 @@ export const claimDiscordInvites = async (userId: string) => {
 			result.reward > 0
 				? `${result.reward} credits were added for ${result.inviteCount} invite${result.inviteCount === 1 ? '' : 's'}.`
 				: `Your ${result.inviteCount} Discord invites were verified.`,
-		url: '/invite'
+		url: '/invite',
+		email: { event: 'email.events.inviteReward' }
 	});
 
 	return {

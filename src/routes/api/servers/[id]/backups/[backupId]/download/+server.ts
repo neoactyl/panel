@@ -1,45 +1,54 @@
-import { error } from '@sveltejs/kit';
-import { AdapterError } from '#lib/adapter/sdk.ts';
-import { getUserAdapter } from '#lib/server/panel/adapter.ts';
-import type { RequestHandler } from './$types';
+import { error } from "@sveltejs/kit";
+import { AdapterError } from "#lib/adapter/sdk.ts";
+import { getUserAdapter } from "#lib/server/panel/adapter.ts";
+import { serverFeatureEnabled } from "#lib/server/config/settings.ts";
+import type { RequestHandler } from "./$types";
 
-const filename = (value: string) => value.replace(/["\\\r\n]/g, '_') || 'backup';
+const filename = (value: string) =>
+  value.replace(/["\\\r\n]/g, "_") || "backup";
 
 export const GET: RequestHandler = async ({ params, locals, url }) => {
-	if (!locals.session || !locals.user) {
-		error(401, { message: 'Unauthorized' });
-	}
+  if (!locals.session || !locals.user) {
+    error(401, { message: "Unauthorized" });
+  }
 
-	const adapter = getUserAdapter(locals.panelUserId);
-	let target: string | null;
+  if (!serverFeatureEnabled("backups")) {
+    error(404, { message: "This feature is disabled." });
+  }
 
-	try {
-		target = await adapter.getBackupDownloadUrl(params.id, params.backupId);
-	} catch (cause) {
-		if (cause instanceof AdapterError) {
-			error(cause.statusCode ?? 502, { message: cause.message });
-		}
+  const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
+  let target: string | null;
 
-		throw cause;
-	}
+  try {
+    target = await adapter.getBackupDownloadUrl(params.id, params.backupId);
+  } catch (cause) {
+    if (cause instanceof AdapterError) {
+      error(cause.statusCode ?? 502, { message: cause.message });
+    }
 
-	if (!target) {
-		error(501, { message: 'This adapter does not expose backup downloads.' });
-	}
+    throw cause;
+  }
 
-	const response = await fetch(target);
+  if (!target) {
+    error(501, { message: "This adapter does not expose backup downloads." });
+  }
 
-	if (!response.ok || !response.body) {
-		error(502, { message: `The backup host responded with ${response.status}.` });
-	}
+  const response = await fetch(target);
 
-	const headers: Record<string, string> = {
-		'content-type': response.headers.get('content-type') ?? 'application/octet-stream',
-		'content-disposition': `attachment; filename="${filename(url.searchParams.get('name') ?? 'backup')}"`
-	};
+  if (!response.ok || !response.body) {
+    error(502, {
+      message: `The backup host responded with ${response.status}.`,
+    });
+  }
 
-	const length = response.headers.get('content-length');
-	if (length) headers['content-length'] = length;
+  const headers: Record<string, string> = {
+    "content-type":
+      response.headers.get("content-type") ?? "application/octet-stream",
+    "content-disposition": `attachment; filename="${filename(url.searchParams.get("name") ?? "backup")}"`,
+  };
 
-	return new Response(response.body, { headers });
+  const length = response.headers.get("content-length");
+  if (length) headers["content-length"] = length;
+
+  return new Response(response.body, { headers });
 };

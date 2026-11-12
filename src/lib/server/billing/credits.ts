@@ -1,177 +1,276 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { db } from '#lib/server/db/index.ts';
-import { creditAccount, creditTransaction } from '#lib/server/db/ops.ts';
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db } from "#lib/server/db/index.ts";
+import { creditAccount, creditTransaction } from "#lib/server/db/ops.ts";
 
 export class CreditError extends Error {
-	code: 'INSUFFICIENT_CREDITS' | 'INVALID_AMOUNT' | 'DUPLICATE_REFERENCE';
+  code: "INSUFFICIENT_CREDITS" | "INVALID_AMOUNT" | "DUPLICATE_REFERENCE";
 
-	constructor(
-		message: string,
-		code: 'INSUFFICIENT_CREDITS' | 'INVALID_AMOUNT' | 'DUPLICATE_REFERENCE'
-	) {
-		super(message);
-		this.name = 'CreditError';
-		this.code = code;
-	}
+  constructor(
+    message: string,
+    code: "INSUFFICIENT_CREDITS" | "INVALID_AMOUNT" | "DUPLICATE_REFERENCE",
+  ) {
+    super(message);
+    this.name = "CreditError";
+    this.code = code;
+  }
 }
 
 export type CreditEntry = {
-	userId: string;
-	amount: number;
-	kind: string;
-	reference: string;
-	description?: string;
-	metadata?: Record<string, unknown>;
+  userId: string;
+  amount: number;
+  kind: string;
+  reference: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
 };
 
-type CreditExecutor = Pick<typeof db, 'select' | 'insert' | 'update'>;
+type CreditExecutor = Pick<
+  typeof db,
+  "select" | "insert" | "update" | "delete"
+>;
 
 const requirePositive = (amount: number) => {
-	if (!Number.isInteger(amount) || amount <= 0) {
-		throw new CreditError('Credit amounts must be positive whole numbers.', 'INVALID_AMOUNT');
-	}
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new CreditError(
+      "Credit amounts must be positive whole numbers.",
+      "INVALID_AMOUNT",
+    );
+  }
 };
 
 const serializable = (value?: Record<string, unknown>) =>
-	value ? JSON.stringify(value) : null;
+  value ? JSON.stringify(value) : null;
 
-export const getCreditBalance = async (userId: string) => {
-	const account = await db
-		.select({ balance: creditAccount.balance })
-		.from(creditAccount)
-		.where(eq(creditAccount.userId, userId))
-		.get();
+const readBalance = async (executor: CreditExecutor, userId: string) => {
+  const account = await executor
+    .select({ balance: creditAccount.balance })
+    .from(creditAccount)
+    .where(eq(creditAccount.userId, userId))
+    .get();
 
-	return account?.balance ?? 0;
+  return account?.balance ?? 0;
 };
 
-const applyEntryWith = async (executor: CreditExecutor, entry: CreditEntry, delta: number) => {
-	const existing = await executor
-		.select({ balanceAfter: creditTransaction.balanceAfter })
-		.from(creditTransaction)
-		.where(eq(creditTransaction.reference, entry.reference))
-		.get();
+export const getCreditBalance = async (userId: string) =>
+  readBalance(db, userId);
 
-	if (existing) {
-		return { applied: false as const, balance: existing.balanceAfter };
-	}
+/**
+ * Atomically add `delta` to a balance.
+ *
+ * The read-modify-write happens inside a single SQLite upsert so concurrent
+ * credits and debits cannot lose each other's updates. The `WHERE` clause on the
+ * update (and the guarded insert) also makes the "not enough credits" check
+ * atomic, so a balance can never be driven below zero.
+ *
+ * Returns the resulting balance, or `null` when the balance would go negative
+ * (a spend against an account with insufficient funds, or no account at all).
+ */
+const applyBalance = async (
+  executor: CreditExecutor,
+  userId: string,
+  delta: number,
+  nowMs: number,
+): Promise<number | null> => {
+  const now = new Date(nowMs);
 
-	const account = await executor
-		.select()
-		.from(creditAccount)
-		.where(eq(creditAccount.userId, entry.userId))
-		.get();
+  // Try the atomic update first. The `balance + delta >= 0` guard means an
+  // insufficient balance updates zero rows instead of going negative.
+  const updated = await executor
+    .update(creditAccount)
+    .set({
+      balance: sql`${creditAccount.balance} + ${delta}`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(creditAccount.userId, userId),
+        sql`${creditAccount.balance} + ${delta} >= 0`,
+      ),
+    )
+    .returning({ balance: creditAccount.balance });
 
-	const balance = account?.balance ?? 0;
-	const next = balance + delta;
+  if (updated.length > 0) return updated[0]!.balance;
 
-	if (next < 0) {
-		throw new CreditError(
-			`Not enough credits. This action needs ${Math.abs(delta)} but your balance is ${balance}.`,
-			'INSUFFICIENT_CREDITS'
-		);
-	}
+  const account = await executor
+    .select({ balance: creditAccount.balance })
+    .from(creditAccount)
+    .where(eq(creditAccount.userId, userId))
+    .get();
 
-	const now = new Date();
+  // The account exists but the balance is too low, or it does not exist and
+  // this is a spend: either way there is nothing to apply.
+  if (account || delta < 0) return null;
 
-	if (account) {
-		await executor
-			.update(creditAccount)
-			.set({ balance: next, updatedAt: now })
-			.where(eq(creditAccount.userId, entry.userId))
-			.run();
-	} else {
-		await executor.insert(creditAccount).values({ userId: entry.userId, balance: next, updatedAt: now }).run();
-	}
+  // First credit for this user: create the account. `onConflictDoNothing`
+  // makes a concurrent creator harmless; the loser retries the update below.
+  const inserted = await executor
+    .insert(creditAccount)
+    .values({ userId, balance: delta, updatedAt: now })
+    .onConflictDoNothing()
+    .returning({ balance: creditAccount.balance });
 
-	try {
-		await executor
-			.insert(creditTransaction)
-			.values({
-				userId: entry.userId,
-				amount: delta,
-				balanceAfter: next,
-				kind: entry.kind,
-				reference: entry.reference,
-				description: entry.description ?? '',
-				metadata: serializable(entry.metadata),
-				createdAt: now
-			})
-			.run();
-	} catch (cause) {
-		const duplicate = await executor
-			.select({ balanceAfter: creditTransaction.balanceAfter })
-			.from(creditTransaction)
-			.where(eq(creditTransaction.reference, entry.reference))
-			.get();
+  if (inserted.length > 0) return inserted[0]!.balance;
 
-		await executor
-			.update(creditAccount)
-			.set({ balance, updatedAt: now })
-			.where(eq(creditAccount.userId, entry.userId))
-			.run();
+  const retried = await executor
+    .update(creditAccount)
+    .set({
+      balance: sql`${creditAccount.balance} + ${delta}`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(creditAccount.userId, userId),
+        sql`${creditAccount.balance} + ${delta} >= 0`,
+      ),
+    )
+    .returning({ balance: creditAccount.balance });
 
-		if (duplicate) return { applied: false as const, balance: duplicate.balanceAfter };
-
-		throw cause;
-	}
-
-	return { applied: true as const, balance: next };
+  return retried[0]?.balance ?? null;
 };
 
-const applyEntry = (entry: CreditEntry, delta: number) => applyEntryWith(db, entry, delta);
+const applyEntryWith = async (
+  executor: CreditExecutor,
+  entry: CreditEntry,
+  delta: number,
+) => {
+  // Fast path: this reference was already applied.
+  const existing = await executor
+    .select({ id: creditTransaction.id })
+    .from(creditTransaction)
+    .where(eq(creditTransaction.reference, entry.reference))
+    .get();
 
-export const addCredits = async (entry: Omit<CreditEntry, 'amount'> & { amount: number }) => {
-	requirePositive(entry.amount);
-	return applyEntry(entry, entry.amount);
+  if (existing) {
+    return {
+      applied: false as const,
+      balance: await readBalance(executor, entry.userId),
+    };
+  }
+
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  // Claim the reference *before* touching the balance. The unique index makes
+  // this insert the single point that decides which concurrent caller may
+  // apply the entry, so a duplicate delivery can never credit the account
+  // twice. `balanceAfter` is filled in once the balance is known.
+  const claim = await executor
+    .insert(creditTransaction)
+    .values({
+      userId: entry.userId,
+      amount: delta,
+      balanceAfter: 0,
+      kind: entry.kind,
+      reference: entry.reference,
+      description: entry.description ?? "",
+      metadata: serializable(entry.metadata),
+      createdAt: now,
+    })
+    .onConflictDoNothing()
+    .returning({ id: creditTransaction.id })
+    .get();
+
+  if (!claim) {
+    // Lost the race: another writer already applied this reference.
+    return {
+      applied: false as const,
+      balance: await readBalance(executor, entry.userId),
+    };
+  }
+
+  const next = await applyBalance(executor, entry.userId, delta, nowMs);
+
+  if (next === null) {
+    // Not enough credits (or a spend against a missing account): release the
+    // claim so the reference can be retried once the balance is topped up.
+    await executor
+      .delete(creditTransaction)
+      .where(eq(creditTransaction.reference, entry.reference))
+      .run();
+
+    const balance = await readBalance(executor, entry.userId);
+
+    throw new CreditError(
+      `Not enough credits. This action needs ${Math.abs(delta)} but your balance is ${balance}.`,
+      "INSUFFICIENT_CREDITS",
+    );
+  }
+
+  await executor
+    .update(creditTransaction)
+    .set({ balanceAfter: next })
+    .where(eq(creditTransaction.reference, entry.reference))
+    .run();
+
+  return { applied: true as const, balance: next };
+};
+
+const applyEntry = (entry: CreditEntry, delta: number) =>
+  applyEntryWith(db, entry, delta);
+
+export const addCredits = async (
+  entry: Omit<CreditEntry, "amount"> & { amount: number },
+) => {
+  requirePositive(entry.amount);
+  return applyEntry(entry, entry.amount);
 };
 
 export const addCreditsWith = async (
-	executor: CreditExecutor,
-	entry: Omit<CreditEntry, 'amount'> & { amount: number }
+  executor: CreditExecutor,
+  entry: Omit<CreditEntry, "amount"> & { amount: number },
 ) => {
-	requirePositive(entry.amount);
-	return applyEntryWith(executor, entry, entry.amount);
+  requirePositive(entry.amount);
+  return applyEntryWith(executor, entry, entry.amount);
 };
 
-export const spendCredits = async (entry: Omit<CreditEntry, 'amount'> & { amount: number }) => {
-	requirePositive(entry.amount);
-	return applyEntry(entry, -entry.amount);
+export const spendCredits = async (
+  entry: Omit<CreditEntry, "amount"> & { amount: number },
+) => {
+  requirePositive(entry.amount);
+  return applyEntry(entry, -entry.amount);
 };
 
 export const grantCredits = async ({
-	userId,
-	amount,
-	reference,
-	description,
-	metadata
+  userId,
+  amount,
+  reference,
+  description,
+  metadata,
 }: {
-	userId: string;
-	amount: number;
-	reference: string;
-	description?: string;
-	metadata?: Record<string, unknown>;
+  userId: string;
+  amount: number;
+  reference: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
 }) =>
-	addCredits({
-		userId,
-		amount,
-		kind: 'admin_grant',
-		reference,
-		description,
-		metadata
-	});
+  addCredits({
+    userId,
+    amount,
+    kind: "admin_grant",
+    reference,
+    description,
+    metadata,
+  });
 
 export const listCreditTransactions = async (userId: string, limit = 50) =>
-	db
-		.select()
-		.from(creditTransaction)
-		.where(eq(creditTransaction.userId, userId))
-		.orderBy(desc(creditTransaction.createdAt))
-		.limit(limit);
+  db
+    .select()
+    .from(creditTransaction)
+    .where(eq(creditTransaction.userId, userId))
+    .orderBy(desc(creditTransaction.createdAt))
+    .limit(limit);
 
-export const findCreditTransaction = async (userId: string, reference: string) =>
-	db
-		.select()
-		.from(creditTransaction)
-		.where(and(eq(creditTransaction.userId, userId), eq(creditTransaction.reference, reference)))
-		.get();
+export const findCreditTransaction = async (
+  userId: string,
+  reference: string,
+) =>
+  db
+    .select()
+    .from(creditTransaction)
+    .where(
+      and(
+        eq(creditTransaction.userId, userId),
+        eq(creditTransaction.reference, reference),
+      ),
+    )
+    .get();

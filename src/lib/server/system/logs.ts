@@ -1,8 +1,17 @@
 import { createHash } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { ensureOperationalSchema } from '#lib/server/db/bootstrap.ts';
 import { activityLog, errorLog } from '#lib/server/db/ops.ts';
+
+export const LOG_RETENTION_DAYS = 30;
+const LOG_RETENTION_MS = LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+let lastPrunedAt = 0;
+let pruning: Promise<void> | undefined;
+
+export const logRetentionCutoff = (now = Date.now()) => new Date(now - LOG_RETENTION_MS);
 
 export type ActivityInput = {
 	userId?: string | null;
@@ -192,4 +201,38 @@ export const flushLogs = async () => {
 
 		if (activityQueue.length > 0 || errorQueue.size > 0) schedule();
 	}
+};
+
+/**
+ * Delete activity and error records older than the retention window. This is
+ * throttled so it can be called from request loads and the background worker
+ * without adding a delete on every log flush.
+ */
+export const pruneExpiredLogs = async (options: { force?: boolean } = {}) => {
+	if (!options.force && Date.now() - lastPrunedAt < PRUNE_INTERVAL_MS) return;
+	if (pruning) return pruning;
+
+	const cutoff = logRetentionCutoff();
+
+	pruning = (async () => {
+		await ensureOperationalSchema();
+		await db.delete(activityLog).where(lt(activityLog.createdAt, cutoff)).run();
+		await db.delete(errorLog).where(lt(errorLog.lastSeen, cutoff)).run();
+		lastPrunedAt = Date.now();
+	})();
+
+	try {
+		await pruning;
+	} finally {
+		pruning = undefined;
+	}
+};
+
+/** Remove every activity and error record, including any queued entries. */
+export const clearLogs = async () => {
+	activityQueue = [];
+	errorQueue.clear();
+	await ensureOperationalSchema();
+	await db.delete(activityLog).run();
+	await db.delete(errorLog).run();
 };

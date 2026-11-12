@@ -3,7 +3,7 @@ import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 	const permissionGroups = await adapter.listPermissionGroups().catch((cause) => {
 		if (cause instanceof AdapterError && cause.code === 'UNSUPPORTED') return [];

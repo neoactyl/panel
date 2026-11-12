@@ -5,13 +5,20 @@ import {
 	type Adapter,
 	type CreateServer,
 	type PanelActionRequest,
-	type PanelScope
+	type PanelScope,
+	type Server
 } from '#lib/adapter/sdk.ts';
 import { logActivity } from '#lib/server/system/logs.ts';
 import { getServerBillingAccess } from '#lib/server/billing/access.ts';
 import { getPanelConfig } from '#lib/server/config/settings.ts';
 import { DEFAULT_PANEL_ADAPTER, findPanelAdapter } from '#lib/adapter/registry.ts';
 import { createPanelAdapter } from './adapters.ts';
+import {
+	deleteServerOwner,
+	getServerOwner,
+	listServerIdsForUser,
+	recordServerOwner
+} from './ownership.ts';
 
 let adapter: Adapter | undefined;
 let guarded: Adapter | undefined;
@@ -23,7 +30,7 @@ export const resetAdapter = () => {
 
 const rawAdapter = (): Adapter => {
 	if (!adapter) {
-		const { adapter: kind, url, token } = getPanelConfig();
+		const { adapter: kind, url, token, clientToken } = getPanelConfig();
 		const definition = findPanelAdapter(kind);
 
 		// Unknown or incomplete configurations fall back to the default adapter
@@ -35,7 +42,7 @@ const rawAdapter = (): Adapter => {
 					(!definition.requiresToken || Boolean(token))
 					? definition.id
 					: DEFAULT_PANEL_ADAPTER,
-				{ url, token }
+				{ url, token, clientToken }
 			)
 		);
 	}
@@ -168,6 +175,75 @@ const SERVER_METHODS = new Set([
 
 const ownership = new Map<string, { owner: string | null; expires: number }>();
 
+type ScopedHooks = {
+	list: () => Promise<Server[]>;
+	create: (input: CreateServer) => Promise<Server>;
+	ensureOwned: (serverId: string) => Promise<void>;
+	remove: (serverId: string) => Promise<void>;
+};
+
+/**
+ * Restrict every server-scoped adapter method to servers the current user can
+ * access. The ownership lookup itself is provided by the caller so panel-account
+ * adapters and database-backed adapters can share the same enforcement.
+ */
+const scopedAdapter = (target: Adapter, hooks: ScopedHooks): Adapter => {
+	return new Proxy(target, {
+		get(base, property, receiver) {
+			const value = Reflect.get(base, property, receiver);
+
+			if (property === 'getServers') {
+				return () => hooks.list();
+			}
+
+			if (property === 'createServer') {
+				return (input: CreateServer) => hooks.create(input);
+			}
+
+			if (property === 'deleteServer') {
+				return async (serverId: string) => {
+					await hooks.ensureOwned(serverId);
+					await base.deleteServer(serverId);
+					await hooks.remove(serverId);
+				};
+			}
+
+			if (property === 'getPanelBlueprint') {
+				return async (scope: PanelScope, serverId?: string) => {
+					if (scope === 'server' && serverId) await hooks.ensureOwned(serverId);
+					return base.getPanelBlueprint(scope, serverId);
+				};
+			}
+
+			if (property === 'getPanelPrompts') {
+				return async (scope: PanelScope, serverId?: string, context?: { output?: string }) => {
+					if (scope === 'server' && serverId) await hooks.ensureOwned(serverId);
+					return base.getPanelPrompts(scope, serverId, context);
+				};
+			}
+
+			if (property === 'runPanelAction') {
+				return async (request: PanelActionRequest) => {
+					if (request.scope === 'server' && request.serverId) {
+						await hooks.ensureOwned(request.serverId);
+					}
+
+					return base.runPanelAction(request);
+				};
+			}
+
+			if (typeof property === 'string' && SERVER_METHODS.has(property) && typeof value === 'function') {
+				return async (serverId: string, ...args: unknown[]) => {
+					await hooks.ensureOwned(serverId);
+					return value.apply(base, [serverId, ...args]);
+				};
+			}
+
+			return typeof value === 'function' ? value.bind(base) : value;
+		}
+	}) as Adapter;
+};
+
 const ownedAdapter = (target: Adapter, panelUserId: string): Adapter => {
 	const ensureOwned = async (serverId: string) => {
 		const cached = ownership.get(serverId);
@@ -185,64 +261,52 @@ const ownedAdapter = (target: Adapter, panelUserId: string): Adapter => {
 		}
 	};
 
-	return new Proxy(target, {
-		get(base, property, receiver) {
-			const value = Reflect.get(base, property, receiver);
-
-			if (property === 'getServers') {
-				return async () => base.getServers(panelUserId);
-			}
-
-			if (property === 'createServer') {
-				return async (input: CreateServer) => {
-					const server = await base.createServer({ ...input, ownerId: panelUserId });
-					ownership.set(server.id, { owner: panelUserId, expires: Date.now() + 15_000 });
-					return server;
-				};
-			}
-
-			if (property === 'deleteServer') {
-				return async (serverId: string) => {
-					await ensureOwned(serverId);
-					await base.deleteServer(serverId);
-					ownership.delete(serverId);
-				};
-			}
-
-			if (property === 'getPanelBlueprint') {
-				return async (scope: PanelScope, serverId?: string) => {
-					if (scope === 'server' && serverId) await ensureOwned(serverId);
-					return base.getPanelBlueprint(scope, serverId);
-				};
-			}
-
-			if (property === 'getPanelPrompts') {
-				return async (scope: PanelScope, serverId?: string, context?: { output?: string }) => {
-					if (scope === 'server' && serverId) await ensureOwned(serverId);
-					return base.getPanelPrompts(scope, serverId, context);
-				};
-			}
-
-			if (property === 'runPanelAction') {
-				return async (request: PanelActionRequest) => {
-					if (request.scope === 'server' && request.serverId) {
-						await ensureOwned(request.serverId);
-					}
-
-					return base.runPanelAction(request);
-				};
-			}
-
-			if (typeof property === 'string' && SERVER_METHODS.has(property) && typeof value === 'function') {
-				return async (serverId: string, ...args: unknown[]) => {
-					await ensureOwned(serverId);
-					return value.apply(base, [serverId, ...args]);
-				};
-			}
-
-			return typeof value === 'function' ? value.bind(base) : value;
+	return scopedAdapter(target, {
+		list: () => target.getServers(panelUserId),
+		create: async (input) => {
+			const server = await target.createServer({ ...input, ownerId: panelUserId });
+			ownership.set(server.id, { owner: panelUserId, expires: Date.now() + 15_000 });
+			return server;
+		},
+		ensureOwned,
+		remove: async (serverId) => {
+			ownership.delete(serverId);
 		}
-	}) as Adapter;
+	});
+};
+
+/**
+ * Ownership for adapters without panel account linking. The panel itself has
+ * no concept of the Neoactyl user, so server ids are mapped to Neoactyl user ids
+ * in `server_ownership`.
+ */
+const dbOwnedAdapter = (target: Adapter, userId: string): Adapter => {
+	const ensureOwned = async (serverId: string) => {
+		const owner = await getServerOwner(serverId);
+
+		if (owner !== userId) {
+			throw new AdapterError('Server not found', 'NOT_FOUND', 404);
+		}
+	};
+
+	return scopedAdapter(target, {
+		list: async () => {
+			const ids = new Set(await listServerIdsForUser(userId));
+			if (ids.size === 0) return [];
+
+			const servers = await target.getServers();
+			return servers.filter((server) => ids.has(server.id));
+		},
+		create: async (input) => {
+			const server = await target.createServer(input);
+			await recordServerOwner(server.id, userId);
+			return server;
+		},
+		ensureOwned,
+		remove: async (serverId) => {
+			await deleteServerOwner(serverId);
+		}
+	});
 };
 
 export const getAdapterForUser = (panelUserId: string): Adapter => {
@@ -305,14 +369,27 @@ const billingGuardAdapter = (base: Adapter): Adapter => {
 	return wrapped;
 };
 
-export const getUserAdapter = (panelUserId?: string): Adapter => {
+export const getUserAdapter = (userId?: string, panelUserId?: string): Adapter => {
 	const base = getAdapter();
 
 	// Adapters with panel accounts must always scope server access to the
 	// linked panel user. The `panel.linkAccounts` setting only controls
 	// automatic linking during login; it must never make every user share the
 	// admin token and therefore control each other's servers.
-	if (!base.capabilities.accounts.link) return billingGuardAdapter(base);
+	if (!base.capabilities.accounts.link) {
+		// The mock adapter is a single-user demo with pre-seeded sample servers.
+		// Requiring ownership rows would hide those sample servers, so keep the
+		// demo behaviour there.
+		if (getPanelConfig().adapter === 'mock') return billingGuardAdapter(base);
+
+		if (!userId) {
+			error(403, {
+				message: 'You need to be signed in to access servers.'
+			});
+		}
+
+		return billingGuardAdapter(dbOwnedAdapter(base, userId));
+	}
 
 	if (!panelUserId) {
 		error(403, {

@@ -15,6 +15,8 @@ export type PanelAdapterDefinition = {
 	description: string;
 	requiresUrl: boolean;
 	requiresToken: boolean;
+	/** Whether the adapter needs a second token for server-scoped (client) API calls. */
+	requiresClientToken: boolean;
 };
 
 export const PANEL_ADAPTERS = [
@@ -23,14 +25,25 @@ export const PANEL_ADAPTERS = [
 		label: 'Mock',
 		description: 'Built-in demo panel with sample servers. No credentials required.',
 		requiresUrl: false,
-		requiresToken: false
+		requiresToken: false,
+		requiresClientToken: false
 	},
 	{
 		id: 'calagopus',
 		label: 'Calagopus',
 		description: 'Communicate with a Calagopus panel over its HTTP API.',
 		requiresUrl: true,
-		requiresToken: true
+		requiresToken: true,
+		requiresClientToken: false
+	},
+	{
+		id: 'pterodactyl',
+		label: 'Pterodactyl',
+		description:
+			'Communicate with a Pterodactyl panel using an Application API key and, optionally, a Client API key.',
+		requiresUrl: true,
+		requiresToken: true,
+		requiresClientToken: true
 	}
 ] as const satisfies readonly PanelAdapterDefinition[];
 

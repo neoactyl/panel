@@ -12,9 +12,9 @@ import { logActivity } from "#lib/server/system/logs.ts";
 import {
   BOOLEAN_SETTINGS,
   NUMBER_SETTINGS,
+  PANEL_SETTING_KEYS,
   SECRET_SETTINGS,
   SERVER_FEATURES,
-  SETTING_KEYS,
   isSecretSetting,
   type SettingKey,
   getBranding,
@@ -276,7 +276,7 @@ const numberBounds: Partial<Record<SettingKey, { min?: number; max?: number }>> 
 
 const settingsShape: Record<string, z.ZodType> = {};
 
-for (const key of SETTING_KEYS) {
+for (const key of PANEL_SETTING_KEYS) {
   if (key === "brand.logo") continue;
 
   if (booleanKeys.has(key)) {
@@ -338,7 +338,7 @@ export const load: PageServerLoad = async () => {
   const current: Record<string, string> = {};
   const secretSet: Record<string, boolean> = {};
 
-  for (const key of SETTING_KEYS) {
+  for (const key of PANEL_SETTING_KEYS) {
     if (isSecretSetting(key)) {
       secretSet[key] = Boolean(getSetting(key));
       current[key] = "";
@@ -402,7 +402,7 @@ export const actions: Actions = {
     const data = form.data as Record<string, unknown>;
     const values: Partial<Record<SettingKey, string>> = {};
 
-    for (const key of SETTING_KEYS) {
+    for (const key of PANEL_SETTING_KEYS) {
       if (key === "brand.logo" || isSecretSetting(key)) continue;
 
       if (booleanKeys.has(key)) {
@@ -424,7 +424,7 @@ export const actions: Actions = {
     }
 
     for (const key of SECRET_SETTINGS) {
-      if (key === "panel.token") continue;
+      if (key === "panel.token" || !PANEL_SETTING_KEYS.includes(key)) continue;
     
       if (fd.get(`clear-${key}`)) {
         values[key] = "";

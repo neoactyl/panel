@@ -17,7 +17,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	let appBlueprint: PanelBlueprint = { pages: [] };
 
 	try {
-		appBlueprint = await getUserAdapter(locals.panelUserId).getPanelBlueprint('app');
+		appBlueprint = await getUserAdapter(locals.user?.id, locals.panelUserId).getPanelBlueprint('app');
 	} catch {
 		/* panel extensions are optional */
 	}

@@ -6,7 +6,7 @@ import { getServerFeatures, serverFeatureEnabled } from '#lib/server/config/sett
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ params, locals, url }) => {
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 	const base = `/server/${params.id}`;
 	const slug = url.pathname.slice(base.length).replace(/^\/+/, '').split('/')[0] || 'console';
 

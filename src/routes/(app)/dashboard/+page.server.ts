@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { getAuth } from '#lib/server/auth/auth.ts';
-import { getAdapter, getAdapterForUser } from '#lib/server/panel/adapter.ts';
+import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { panelAuthEnabled } from '#lib/server/auth/panel-auth.ts';
 import { getEffectiveQuota } from '#lib/server/quota/user.ts';
 import { setUserSetting } from '#lib/server/db/user-settings.ts';
@@ -15,14 +15,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const panelLinkAvailable = panelAuthEnabled();
 
 	if (!panelLinkAvailable) {
-		return { servers: await getAdapter().getServers(), linked: true, panelLinkAvailable, quota };
+		return {
+			servers: await getUserAdapter(locals.user.id, locals.panelUserId).getServers(),
+			linked: true,
+			panelLinkAvailable,
+			quota
+		};
 	}
 
 	if (!locals.panelUserId) {
 		return { servers: [], linked: false, panelLinkAvailable, quota };
 	}
 
-	const servers = await getAdapterForUser(locals.panelUserId).getServers();
+	const servers = await getUserAdapter(locals.user.id, locals.panelUserId).getServers();
 
 	return { servers, linked: true, panelLinkAvailable, quota };
 };

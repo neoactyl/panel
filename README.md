@@ -6,7 +6,7 @@ Neoactyl is an open-source game hosting management panel for managing servers, u
 
 It was started because I found Heliactyl slow and awkward to use. I wanted to build a panel with a better user experience and, especially, support for different server management backends.
 
-Unlike panels that only work with Pterodactyl, Neoactyl uses an adapter system to communicate with different backends. Currently, the Calagopus and Mock adapters are available.
+Unlike panels that only work with Pterodactyl, Neoactyl uses an adapter system to communicate with different backends. Currently, the Calagopus, Pterodactyl, and Mock adapters are available.
 
 ## Why?
 

@@ -1,4 +1,4 @@
-﻿import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { AdapterError, type CreateServer } from '#lib/adapter/sdk.ts';
 import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import { createServerBilling, getRenewalSettings } from '#lib/server/billing/billing.ts';
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		error(404, { message: 'Server creation is disabled.' });
 	}
 
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 	if (!adapter.capabilities.servers.create) {
 		error(404, 'Server creation is not supported');
@@ -114,7 +114,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'Choose a nest, egg, and node.' });
 		}
 
-		const adapter = getUserAdapter(locals.panelUserId);
+		const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 		if (!getBool('server.allowCreate')) {
 			return fail(403, { message: 'Server creation is disabled.' });

@@ -449,12 +449,21 @@ export const applyPaidCheckoutSession = async (
     });
 
     try {
+      const creditName = getSetting("credits.currency") || "Credits";
+
       await notifyUser({
         userId,
         kind: "credits.topup",
         title: "Credits added",
         body: `${credits.toLocaleString()} credits were added to your balance.`,
         url: "/credits",
+        email: {
+          variables: {
+            credits: credits.toLocaleString(),
+            amount: formatTopupPrice(amountCents, currency),
+            balance: `${(result.balance ?? 0).toLocaleString()} ${creditName}`,
+          },
+        },
       });
     } catch (cause) {
       console.error(

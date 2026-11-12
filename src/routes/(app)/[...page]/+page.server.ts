@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	let blueprint: PanelBlueprint = { pages: [] };
 
 	try {
-		blueprint = await getUserAdapter(locals.panelUserId).getPanelBlueprint('app');
+		blueprint = await getUserAdapter(locals.user?.id, locals.panelUserId).getPanelBlueprint('app');
 	} catch {
 		error(404, { message: 'Page not found.' });
 	}
