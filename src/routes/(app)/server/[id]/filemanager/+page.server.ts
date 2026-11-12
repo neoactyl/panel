@@ -35,12 +35,12 @@ const failure = (cause: unknown, fallback: string) =>
 	fail(400, { error: cause instanceof Error ? cause.message : fallback });
 
 export const load: PageServerLoad = async ({ params, locals }) => ({
-	fileSystem: await getUserAdapter(locals.panelUserId).getFileSystem(params.id)
+	fileSystem: await getUserAdapter(locals.user?.id, locals.panelUserId).getFileSystem(params.id)
 });
 
 export const actions: Actions = {
 	upload: async ({ locals, params, request }) => {
-		const adapter = getUserAdapter(locals.panelUserId);
+		const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 		if (!adapter.capabilities.files.upload) {
 			return fail(403, { error: 'This panel does not support file uploads.' });
@@ -84,7 +84,7 @@ export const actions: Actions = {
 	},
 
 	createDirectory: async ({ locals, params, request }) => {
-		const adapter = getUserAdapter(locals.panelUserId);
+		const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 		if (!adapter.capabilities.files.write) {
 			return fail(403, { error: 'This panel does not support file management.' });

@@ -4,25 +4,35 @@ Adapters let Neoactyl manage servers on different hosting backends without tying
 
 ## Available adapters
 
-| Adapter   | Location                            | Notes                                                               |
-| --------- | ----------------------------------- | ------------------------------------------------------------------- |
-| Mock      | `src/lib/server/panel/mock.ts`      | Simulated servers, files, backups, and console. Used for development. |
-| Calagopus | `src/lib/server/panel/calagopus.ts` | Connects to a Calagopus panel using a URL and API token.             |
+| Adapter     | Location                              | Notes                                                                                          |
+| ----------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Mock        | `src/lib/server/panel/mock.ts`        | Simulated servers, files, backups, and console. Used for development.                          |
+| Calagopus   | `src/lib/server/panel/calagopus.ts`   | Connects to a Calagopus panel using a URL and API token.                                       |
+| Pterodactyl | `src/lib/server/panel/pterodactyl.ts` | Connects to a Pterodactyl panel using an Application API key and an optional Client API key.    |
 
-If the configured adapter is Calagopus but the URL or token is missing, Neoactyl falls back to Mock.
+If the configured adapter is Calagopus or Pterodactyl but the URL or token is missing, Neoactyl falls back to Mock.
+
+Pterodactyl exposes two separate APIs. The Application API key (the panel token) is used for server management, nodes, nests and eggs. The optional Client API key enables console streaming, power actions, files, backups, databases, schedules, startup variables, subusers and allocations for servers that key can access.
 
 ## How selection works
 
-`getAdapter()` in `src/lib/server/panel/adapter.ts` reads the panel settings:
+`getAdapter()` in `src/lib/server/panel/adapter.ts` reads the panel settings and asks the registry for the matching adapter definition:
 
 ```ts
-const { adapter: kind, url, token } = getPanelConfig();
+const { adapter: kind, url, token, clientToken } = getPanelConfig();
+const definition = findPanelAdapter(kind);
 
-adapter =
-  kind === 'calagopus' && url && token
-    ? new Calagopus(url, token)
-    : new MockAdapter();
+adapter = createPanelAdapter(
+  definition &&
+    (!definition.requiresUrl || Boolean(url)) &&
+    (!definition.requiresToken || Boolean(token))
+    ? definition.id
+    : DEFAULT_PANEL_ADAPTER,
+  { url, token, clientToken }
+);
 ```
+
+`createPanelAdapter()` in `src/lib/server/panel/adapters.ts` maps the selected id to its class.
 
 The instance is cached until settings change (`resetAdapter()`). Calls are wrapped so that:
 
@@ -104,7 +114,9 @@ Adapters that expose panel accounts set `capabilities.accounts.*` to `true` and 
 
 The server wraps those adapters so a user can only act on servers they own. `getServers()` is called with the linked panel user's ID. This is a security boundary: do not rely on the UI to enforce ownership, and do not return another user's servers from `getServers(userId)`.
 
-If the backend has no concept of panel accounts, set `accounts.link`, `.create`, and `.delete` to `false`.
+If the backend has no concept of panel accounts, set `accounts.link`, `.create`, and `.delete` to `false`. For those adapters Neoactyl records server ownership in the `server_ownership` table (server id to Neoactyl user id) when a server is created. `getServers()` only returns rows owned by the current user, and every server-scoped method verifies the ownership row before calling the backend. Deleting a server removes its ownership row. Existing servers are backfilled from billing, storefront redemption and entitlement records during startup. The built-in Mock adapter is exempt because it is a single-user demo with pre-seeded sample servers.
+
+The Pterodactyl adapter currently sets all account capabilities to `false`: Pterodactyl does not expose a login endpoint that Neoactyl can use to verify a panel password, so panel accounts are not linked. Ownership is therefore enforced through the database table above. The Application API key manages servers, and the optional Client API key determines which servers expose console, file, power and other client-level features.
 
 ## Adding an adapter
 

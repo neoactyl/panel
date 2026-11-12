@@ -51,6 +51,11 @@
 	const toggleRow =
 		'flex items-center justify-between gap-4 border border-white/10 bg-[#121212] px-3 py-2.5';
 	const checked = (key: string) => data.current[key] === 'true';
+
+	let selectedAdapter = $state(untrack(() => data.current['panel.adapter'] ?? ''));
+	const requiresClientToken = $derived(
+		data.adapters.find((adapter) => adapter.id === selectedAdapter)?.requiresClientToken ?? false
+	);
 </script>
 
 <svelte:head>
@@ -168,9 +173,9 @@
 		<div class="mt-5 grid gap-4 sm:grid-cols-2">
 			<div>
 				<label class={label} for="panel.adapter">Adapter</label>
-				<select id="panel.adapter" name="panel.adapter" class={input}>
+				<select id="panel.adapter" name="panel.adapter" class={input} bind:value={selectedAdapter}>
 					{#each data.adapters as adapter}
-						<option value={adapter.id} selected={data.current['panel.adapter'] === adapter.id}>
+						<option value={adapter.id}>
 							{adapter.label}
 						</option>
 					{/each}
@@ -205,6 +210,30 @@
 				</label>
 			{/if}
 		</div>
+		{#if requiresClientToken}
+			<div class="mt-4">
+				<label class={label} for="panel.clientToken">Client API token (Pterodactyl)</label>
+				<input
+					id="panel.clientToken"
+					name="panel.clientToken"
+					type="password"
+					class={input}
+					placeholder={data.secretSet['panel.clientToken']
+						? 'Leave blank to keep the current client token'
+						: 'Optional; enables console, files, power and other server features'}
+				/>
+				<p class="mt-1 text-xs text-white/40">
+					Pterodactyl uses separate Application and Client API keys. Use the Application key above
+					for server management and add a Client key here for console, files, backups and power.
+				</p>
+				{#if data.secretSet['panel.clientToken']}
+					<label class="mt-2 flex items-center gap-2 text-xs text-white/50">
+						<Checkbox name="clear-panel.clientToken" />
+						Remove the stored client token
+					</label>
+				{/if}
+			</div>
+		{/if}
 		<div class="mt-5 grid gap-2 sm:grid-cols-2">
 			<label class={toggleRow}>
 				<span class="text-sm text-white/70">Link panel accounts on login</span>

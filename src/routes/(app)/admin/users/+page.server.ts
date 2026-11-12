@@ -13,7 +13,9 @@ import { superValidate, message } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+  requireAdmin(locals);
+
   const [users, roleForm, banForm, deleteForm] = await Promise.all([
     db
       .select({

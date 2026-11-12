@@ -44,7 +44,13 @@ export const hasAdmin = (): Promise<boolean> => {
       .where(eq(user.role, "admin"))
       .limit(1)
       .then((rows) => rows.length > 0)
-      .catch(() => false);
+      .catch((cause) => {
+        // A transient database error must not be cached as "no admin exists",
+        // otherwise every request is redirected to /setup until a restart.
+        console.error("Unable to check for an administrator account.", cause);
+        adminState = undefined;
+        return false;
+      });
   }
 
   return adminState;

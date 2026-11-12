@@ -15,6 +15,7 @@ export const SETTING_DEFAULTS = {
 	'panel.adapter': 'mock',
 	'panel.url': '',
 	'panel.token': '',
+	'panel.clientToken': '',
 	'panel.nodeCountries': '[]',
 	'panel.linkAccounts': 'true',
 	'panel.createAccounts': 'true',
@@ -96,6 +97,31 @@ export const SETTING_DEFAULTS = {
 	'vouchers.enabled': 'true',
 	'stripe.secretKey': '',
 	'stripe.webhookSecret': '',
+	'smtp.enabled': 'false',
+	'smtp.host': '',
+	'smtp.port': '587',
+	'smtp.secure': 'false',
+	'smtp.requireTls': 'true',
+	'smtp.user': '',
+	'smtp.password': '',
+	'smtp.fromEmail': '',
+	'smtp.fromName': '',
+	'smtp.replyTo': '',
+	'auth.requireEmailVerification': 'false',
+	'email.events.emailVerification': 'true',
+	'email.events.passwordReset': 'true',
+	'email.events.serverExpiringSoon': 'true',
+	'email.events.serverSuspended': 'true',
+	'email.events.serverDeletionWarning': 'true',
+	'email.events.serverDeleted': 'true',
+	'email.events.renewalFailed': 'true',
+	'email.events.serverRenewed': 'true',
+	'email.events.topup': 'true',
+	'email.events.giftReceived': 'true',
+	'email.events.voucherRedeemed': 'true',
+	'email.events.referralReward': 'true',
+	'email.events.inviteReward': 'true',
+	'email.events.j4rReward': 'true',
 	'invites.enabled': 'true',
 	'invites.rewardCoins': '0',
 	'invites.rewardCpu': '0',
@@ -138,13 +164,55 @@ export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
 
 export const SECRET_SETTINGS = [
   "panel.token",
+  "panel.clientToken",
   "discord.clientSecret",
   "discord.botToken",
   "tasks.linkvertiseApiKey",
   "addons.curseforgeKey",
   "stripe.secretKey",
   "stripe.webhookSecret",
+  "smtp.password",
 ] as const satisfies readonly SettingKey[];
+
+/**
+ * Settings managed by the dedicated admin Email page. They are deliberately
+ * excluded from the general settings form so its schema does not have to
+ * round-trip long template text and SMTP secrets.
+ */
+export const EMAIL_SETTING_KEYS = [
+  "smtp.enabled",
+  "smtp.host",
+  "smtp.port",
+  "smtp.secure",
+  "smtp.requireTls",
+  "smtp.user",
+  "smtp.password",
+  "smtp.fromEmail",
+  "smtp.fromName",
+  "smtp.replyTo",
+  "auth.requireEmailVerification",
+  "email.events.emailVerification",
+  "email.events.passwordReset",
+  "email.events.serverExpiringSoon",
+  "email.events.serverSuspended",
+  "email.events.serverDeletionWarning",
+  "email.events.serverDeleted",
+  "email.events.renewalFailed",
+  "email.events.serverRenewed",
+  "email.events.topup",
+  "email.events.giftReceived",
+  "email.events.voucherRedeemed",
+  "email.events.referralReward",
+  "email.events.inviteReward",
+  "email.events.j4rReward",
+] as const satisfies readonly SettingKey[];
+
+const emailSettingKeys: ReadonlySet<string> = new Set(EMAIL_SETTING_KEYS);
+
+/** Setting keys rendered by the general admin settings form. */
+export const PANEL_SETTING_KEYS = SETTING_KEYS.filter(
+  (key) => !emailSettingKeys.has(key),
+);
 
 export const isSecretSetting = (key: string): boolean =>
   (SECRET_SETTINGS as readonly string[]).includes(key);
@@ -250,6 +318,7 @@ export const getPanelConfig = () => ({
   adapter: getSetting("panel.adapter").trim().toLowerCase() || "mock",
   url: getSetting("panel.url").trim(),
   token: getSetting("panel.token"),
+  clientToken: getSetting("panel.clientToken"),
 });
 
 const publicLogo = (value: string) => {

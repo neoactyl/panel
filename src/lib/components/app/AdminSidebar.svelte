@@ -14,6 +14,7 @@
 	import IconCoin from '@tabler/icons-svelte/icons/coin';
 	import IconCreditCard from '@tabler/icons-svelte/icons/credit-card';
 	import IconActivity from '@tabler/icons-svelte/icons/activity';
+	import IconMail from '@tabler/icons-svelte/icons/mail';
 
 	let {
 		user,
@@ -41,7 +42,10 @@
 		},
 		{
 			label: 'Configuration',
-			items: [{ href: '/admin/settings', label: 'Settings', icon: IconSettings, exact: false }]
+			items: [
+				{ href: '/admin/email', label: 'Email', icon: IconMail, exact: false },
+				{ href: '/admin/settings', label: 'Settings', icon: IconSettings, exact: false }
+			]
 		}
 	];
 

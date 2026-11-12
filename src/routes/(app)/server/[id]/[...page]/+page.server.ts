@@ -5,7 +5,7 @@ import type { PageServerLoad } from './$types';
 const normalize = (path: string) => path.replace(/^\/+|\/+$/g, '');
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 	const blueprint = await adapter.getPanelBlueprint('server', params.id);
 	const requested = normalize(params.page);
 	const page = blueprint.pages.find((entry) => normalize(entry.path) === requested);

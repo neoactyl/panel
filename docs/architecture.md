@@ -29,7 +29,7 @@ One-time server initialization (`initializeServer`) runs from `server.ts` in
 production and from the lifecycle Vite plugin in development. It is not tied to
 the first web request.
 
-Unexpected errors are captured by `handleError`, stored in the error log, and shown to the user with a reference ID.
+Unexpected errors are captured by `handleError`, stored in the error log, and shown to the user with a reference ID. Activity and error logs are retained for 30 days; expired rows are pruned by the background worker, and administrators can clear all logs from the admin logs page.
 
 ## Routes
 
@@ -57,8 +57,8 @@ The adapter layer is the boundary between the panel and a game hosting backend.
 
 - `src/lib/adapter/sdk.ts` defines the contract: `Adapter`, capabilities, and normalized types such as `Server`, `Node`, `Backup`, and `Schedule`.
 - `src/lib/adapter/client.ts` is the typed browser client used by Svelte components.
-- `src/lib/server/panel/adapter.ts` selects and caches an adapter from panel settings. It also wraps calls with error normalization, activity logging, and per-user ownership checks.
-- `src/lib/server/panel/calagopus.ts` and `mock.ts` are the current implementations.
+- `src/lib/server/panel/adapter.ts` selects and caches an adapter from panel settings. It also wraps calls with error normalization, activity logging, and per-user ownership checks. Adapters that cannot link panel accounts use the `server_ownership` table so server ids stay bound to Neoactyl users.
+- `src/lib/server/panel/calagopus.ts`, `pterodactyl.ts`, and `mock.ts` are the current implementations.
 
 Adapters declare capabilities so the UI can hide unsupported features. Required methods throw `AdapterError` with a normalized code (`UNAUTHORIZED`, `NOT_FOUND`, `VALIDATION`, `NETWORK`, `UNSUPPORTED`, and so on), which the server logs and the UI can display safely.
 

@@ -11,11 +11,11 @@ Environment variables are described in [`.env.example`](../.env.example) and val
 
 ### Required
 
-| Variable             | Description                                                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Variable             | Description                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`       | libSQL connection string. Use `file:local.db` for SQLite or a `libsql://`/`https://` URL. Aliased by `TURSO_DATABASE_URL`. |
-| `ORIGIN`             | Public base URL of the panel, for example `https://panel.example.com`.                                                 |
-| `BETTER_AUTH_SECRET` | Secret used to sign sessions and tokens. Use at least 32 random characters in production.                               |
+| `ORIGIN`             | Public base URL of the panel, for example `https://panel.example.com`.                                                     |
+| `BETTER_AUTH_SECRET` | Secret used to sign sessions and tokens. Use at least 32 random characters in production.                                  |
 
 Generate a secret with:
 
@@ -61,27 +61,27 @@ Turso's embedded replicas (a local file kept in sync with a remote primary) are 
 
 ### Recommended
 
-| Variable                  | Description                                                                                              |
-| ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_URL`         | Base URL used by Better Auth. Defaults to `ORIGIN`. Set it separately only if they should differ.        |
-| `SETTINGS_ENCRYPTION_KEY` | Encrypts panel API tokens at rest with AES-256-GCM. 32+ random characters. Falls back to the auth secret. |
+| Variable                  | Description                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_URL`         | Base URL used by Better Auth. Defaults to `ORIGIN`. Set it separately only if they should differ.             |
+| `SETTINGS_ENCRYPTION_KEY` | Encrypts panel API tokens at rest with AES-256-GCM. 32+ random characters. Falls back to the auth secret.     |
 | `DATABASE_AUTH_TOKEN`     | Auth token for a networked libSQL/Turso database. Not needed for local SQLite. Aliased by `TURSO_AUTH_TOKEN`. |
 
 Use a dedicated `SETTINGS_ENCRYPTION_KEY` in production. Changing it after panel tokens have been stored makes those tokens unreadable.
 
 ### Optional integrations
 
-| Variable                | Description                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`     | Stripe secret key for credit top-ups. The value in admin settings takes precedence.               |
-| `STRIPE_WEBHOOK_SECRET` | Signing secret for `/api/auth/stripe/webhook`. The value in admin settings takes precedence.      |
-| `DISCORD_CLIENT_ID`     | Discord OAuth client ID. Leave unset to disable "Sign in with Discord".                           |
-| `DISCORD_CLIENT_SECRET` | Discord OAuth client secret.                                                                      |
-| `DISCORD_BOT_TOKEN`     | Discord bot token override. The embedded bot also reads its token from admin settings.            |
-| `DISCORD_GUILD_ID`      | Primary Discord guild ID override.                                                                |
-| `DISCORD_EMBED_BOT`     | `true` (default) starts the bot in the web process. Set `false` when running the bot separately.  |
-| `DISCORD_SHARD_COUNT`   | Total number of gateway shards. Must match across every bot process.                              |
-| `DISCORD_SHARD_IDS`     | Comma-separated shard IDs handled by this process. Defaults to `0`.                               |
+| Variable                | Description                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `STRIPE_SECRET_KEY`     | Stripe secret key for credit top-ups. The value in admin settings takes precedence.              |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret for `/api/auth/stripe/webhook`. The value in admin settings takes precedence.     |
+| `DISCORD_CLIENT_ID`     | Discord OAuth client ID. Leave unset to disable "Sign in with Discord".                          |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth client secret.                                                                     |
+| `DISCORD_BOT_TOKEN`     | Discord bot token override. The embedded bot also reads its token from admin settings.           |
+| `DISCORD_GUILD_ID`      | Primary Discord guild ID override.                                                               |
+| `DISCORD_EMBED_BOT`     | `true` (default) starts the bot in the web process. Set `false` when running the bot separately. |
+| `DISCORD_SHARD_COUNT`   | Total number of gateway shards. Must match across every bot process.                             |
+| `DISCORD_SHARD_IDS`     | Comma-separated shard IDs handled by this process. Defaults to `0`.                              |
 
 ### Runtime and proxy
 
@@ -102,24 +102,31 @@ Set the proxy variables when TLS terminates at a reverse proxy. Otherwise rate l
 
 Most behavior is configured from `/admin` after setup. Settings are stored in the `settings` table and cached by the server. Important groups include:
 
-| Group                 | Examples                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| Branding              | Panel name, description, logo                                                            |
-| Adapter               | Mock or Calagopus, panel URL, API token, node countries                                  |
-| Authentication        | Registration, account linking, panel account creation                                    |
-| Quotas and defaults   | Per-user CPU/memory/disk limits, default server resources, maximum servers per user      |
-| Navigation            | Show or hide AFK, storefront, rewards, invites, and J4R pages                            |
-| Features              | Console, file manager, databases, allocations, backups, schedules, startup, subusers     |
-| Credits               | Currency name, creation cost, renewal pricing and intervals, top-up options              |
-| AFK                   | Enablement, coins per minute, daily cap, heartbeat and anti-cheat rules                   |
-| Discord               | OAuth credentials, bot token, guild IDs, J4R and invite rewards                          |
-| Monitoring            | Slow request threshold                                                                   |
+| Group               | Examples                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| Branding            | Panel name, description, logo                                                                           |
+| Adapter             | Mock, Calagopus or Pterodactyl, panel URL, API token, optional Pterodactyl client token, node countries |
+| Authentication      | Registration, account linking, panel account creation                                                   |
+| Quotas and defaults | Per-user CPU/memory/disk limits, default server resources, maximum servers per user                     |
+| Navigation          | Show or hide AFK, storefront, rewards, invites, and J4R pages                                           |
+| Features            | Console, file manager, databases, allocations, backups, schedules, startup, subusers                    |
+| Credits             | Currency name, creation cost, renewal pricing and intervals, top-up options                             |
+| AFK                 | Enablement, coins per minute, daily cap, heartbeat and anti-cheat rules                                 |
+| Discord             | OAuth credentials, bot token, guild IDs, J4R and invite rewards                                         |
+| Monitoring          | Slow request threshold                                                                                  |
 
 Defaults are defined in `src/lib/server/config/settings.ts`. New settings should be given a sensible default there so existing installations keep working.
 
-## Secrets
+## Email and SMTP
 
-- `.env` is ignored by Git. Never commit real secrets.
-- Panel API tokens are encrypted at rest with `SETTINGS_ENCRYPTION_KEY` (or `BETTER_AUTH_SECRET` when no dedicated key is set).
-- Rotate the auth secret only when you accept that existing sessions will be invalidated.
-- If you run the Discord bot as a separate process, it needs the same `DATABASE_URL` and `BETTER_AUTH_SECRET` as the web process.
+Outgoing email is configured from `/admin/email`. The SMTP password is stored as an encrypted secret, and the rest of the connection details live in the normal settings table.
+
+- Enable **outgoing email** after entering the host, port, sender address and credentials.
+- Use **Test connection** to verify the SMTP handshake, then **Send a test** to check delivery.
+- Pick which events send email: verification, password reset, server expiring, suspension, deletion warning, deletion, renewal failure, renewal, successful top-up, gifts, vouchers, referrals and Discord rewards. In-app notifications are always recorded even when the matching email is turned off.
+- **Require verified email** additionally blocks sign-in until the address is confirmed. Verification emails are always sent while this is enabled, even if the optional verification event is off.
+- Every message uses the editable **Base layout** plus a per-event subject and HTML body. Placeholders such as `{{userName}}`, `{{actionUrl}}` and `{{serverId}}` are listed in the editor; `{{content}}` in the layout is replaced with the message body. **Restore default** brings back the built-in template.
+
+Customised templates are stored as JSON on disk, never in the database. The file is written next to the SQLite database when `DATABASE_URL` uses a `file:` URL (for example `/data/email-templates.json` in the Docker setup), otherwise to `data/email-templates.json`. Set `EMAIL_TEMPLATES_FILE` to choose another path. Only templates that differ from the built-in defaults are stored, so back up that file if you want to keep your edits across container rebuilds. The process needs write access to the directory.
+
+Email is sent through `nodemailer`. The app supports implicit TLS (usually port 465), STARTTLS upgrade, and unauthenticated relays.

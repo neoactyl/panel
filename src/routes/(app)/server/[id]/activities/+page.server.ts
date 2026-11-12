@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	try {
-		return { activities: await getUserAdapter(locals.panelUserId).listActivities(params.id) };
+		return { activities: await getUserAdapter(locals.user?.id, locals.panelUserId).listActivities(params.id) };
 	} catch (cause) {
 		if (cause instanceof AdapterError && cause.code === 'UNSUPPORTED') {
 			return { activities: [] };

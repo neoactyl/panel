@@ -556,7 +556,8 @@ export const claimJ4R = async (userId: string, guildId: string) => {
 			reward > 0
 				? `${reward} credits were added to your balance.`
 				: 'Your Discord membership is verified.',
-		url: '/j4r'
+		url: '/j4r',
+		email: { event: 'email.events.j4rReward' }
 	});
 
 	return { reward, guildId, balance: await getCreditBalance(userId) };

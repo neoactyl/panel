@@ -1,22 +1,22 @@
-﻿import { error, fail } from '@sveltejs/kit';
-import { actionFailure } from '#lib/server/action-error.ts';
-import { adminFailure, requireAdmin } from '#lib/server/auth/admin.ts';
+﻿import { error, fail } from "@sveltejs/kit";
+import { actionFailure } from "#lib/server/action-error.ts";
+import { adminFailure, requireAdmin } from "#lib/server/auth/admin.ts";
 import {
-	TopupError,
-	createCreditTopupOption,
-	deleteCreditTopupOption,
-	getStripeCredentials,
-	getTopupSettings,
-	listTopupOptions,
-	setCreditTopupOptionEnabled,
-	updateCreditTopupOption
-} from '#lib/server/billing/topup.ts';
-import { formBoolean, formInt, formString, toInt } from '#lib/server/forms.ts';
-import { logActivity } from '#lib/server/system/logs.ts';
-import type { Actions, PageServerLoad } from './$types';
+  TopupError,
+  createCreditTopupOption,
+  deleteCreditTopupOption,
+  getStripeCredentials,
+  getTopupSettings,
+  listTopupOptions,
+  setCreditTopupOptionEnabled,
+  updateCreditTopupOption,
+} from "#lib/server/billing/topup.ts";
+import { formBoolean, formInt, formString, toInt } from "#lib/server/forms.ts";
+import { logActivity } from "#lib/server/system/logs.ts";
+import type { Actions, PageServerLoad } from "./$types";
 
 const priceToCents = (data: FormData) => {
-  const raw = formString(data, 'price');
+  const raw = formString(data, "price");
 
   if (!/^\d+(\.\d{1,2})?$/.test(raw)) return null;
 
@@ -34,12 +34,12 @@ const optionInput = (data: FormData) => {
     );
   }
 
-  const label = formString(data, 'label');
+  const label = formString(data, "label");
   if (!label) {
     throw new TopupError("Label is required.", "INVALID_OPTION");
   }
 
-  const credits = toInt(data.get('credits'), 1);
+  const credits = toInt(data.get("credits"), 1);
   if (credits === null) {
     throw new TopupError(
       "Credits must be a positive number.",
@@ -49,19 +49,19 @@ const optionInput = (data: FormData) => {
 
   return {
     label,
-    description: formString(data, 'description'),
-    badge: formString(data, 'badge'),
+    description: formString(data, "description"),
+    badge: formString(data, "badge"),
     credits,
     priceCents,
-    enabled: formBoolean(data, 'enabled'),
-    sortOrder: formInt(data, 'sortOrder') ?? 0,
+    enabled: formBoolean(data, "enabled"),
+    sortOrder: formInt(data, "sortOrder") ?? 0,
   };
 };
 
 export const load: PageServerLoad = async ({ locals }) => {
-  try {
-    requireAdmin(locals);
+  requireAdmin(locals);
 
+  try {
     const options = await listTopupOptions(true).then((options) =>
       options.map((option) => ({
         ...option,
@@ -85,7 +85,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     };
   } catch (cause) {
     console.error("Error loading admin credits page:", cause);
-    error(500, { message: "Failed to load admin credits page. Please try again." });
+    error(500, {
+      message: "Failed to load admin credits page. Please try again.",
+    });
   }
 };
 
@@ -122,7 +124,7 @@ export const actions: Actions = {
     if (denied) return denied;
 
     const data = await request.formData();
-    const id = formString(data, 'id');
+    const id = formString(data, "id");
 
     if (!id) return fail(400, { error: "Choose a credit package to update." });
 
@@ -151,8 +153,8 @@ export const actions: Actions = {
     if (denied) return denied;
 
     const data = await request.formData();
-    const id = formString(data, 'id');
-    const enabled = formString(data, 'enabled') === 'true';
+    const id = formString(data, "id");
+    const enabled = formString(data, "enabled") === "true";
 
     if (!id) return fail(400, { error: "Choose a credit package to update." });
 
@@ -167,7 +169,7 @@ export const actions: Actions = {
     if (denied) return denied;
 
     const data = await request.formData();
-    const id = formString(data, 'id');
+    const id = formString(data, "id");
 
     if (!id) return fail(400, { error: "Choose a credit package to delete." });
 
@@ -183,4 +185,3 @@ export const actions: Actions = {
     return { success: "Credit package deleted." };
   },
 };
-

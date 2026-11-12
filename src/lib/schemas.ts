@@ -37,6 +37,7 @@ export const setupSettingsSchema = z.object({
   adapter: z.enum(PANEL_ADAPTER_IDS),
   panelUrl: z.string().trim(),
   panelToken: z.string().optional().default(""),
+  panelClientToken: z.string().optional().default(""),
 });
 
 export const setupCreateSchema = z
@@ -59,6 +60,7 @@ export const setupCreateSchema = z
     adapter: z.enum(PANEL_ADAPTER_IDS),
     panelUrl: z.string().trim(),
     panelToken: z.string().optional().default(""),
+    panelClientToken: z.string().optional().default(""),
   })
   .refine((d) => d.password === d.confirmPassword, {
     path: ["confirmPassword"],

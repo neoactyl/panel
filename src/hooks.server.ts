@@ -1,186 +1,227 @@
-import { redirect } from '@sveltejs/kit';
-import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
-import { building } from '$app/env';
-import { RetryAfterRateLimiter } from 'sveltekit-rate-limiter/server';
-import { getAuth } from '#lib/server/auth/auth.ts';
-import { ensureOperationalSchema } from '#lib/server/db/bootstrap.ts';
-import { serverEnv } from '#lib/server/config/env.ts';
-import { logActivity, logError } from '#lib/server/system/logs.ts';
-import { recordRequest } from '#lib/server/system/metrics.ts';
-import { getPanelUserId, panelAuthEnabled } from '#lib/server/auth/panel-auth.ts';
-import { getNumber, loadSettings } from '#lib/server/config/settings.ts';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { redirect } from "@sveltejs/kit";
+import type { Handle, HandleServerError } from "@sveltejs/kit/hooks";
+import { building } from "$app/env";
+import { RetryAfterRateLimiter } from "sveltekit-rate-limiter/server";
+import { getAuth } from "#lib/server/auth/auth.ts";
+import { ensureOperationalSchema } from "#lib/server/db/bootstrap.ts";
+import { serverEnv } from "#lib/server/config/env.ts";
+import { logActivity, logError } from "#lib/server/system/logs.ts";
+import { recordRequest } from "#lib/server/system/metrics.ts";
+import {
+  getPanelUserId,
+  panelAuthEnabled,
+} from "#lib/server/auth/panel-auth.ts";
+import {
+  getBool,
+  getNumber,
+  loadSettings,
+} from "#lib/server/config/settings.ts";
+import { svelteKitHandler } from "better-auth/svelte-kit";
 
 const authLimiter = new RetryAfterRateLimiter({
-	IP: [30, '10m'],
-	IPUA: [12, '10m']
+  IP: [30, "10m"],
+  IPUA: [12, "10m"],
 });
 
 const setupLimiter = new RetryAfterRateLimiter({
-	IP: [15, '15m'],
-	IPUA: [6, '15m']
+  IP: [15, "15m"],
+  IPUA: [6, "15m"],
 });
 
 const adapterLimiter = new RetryAfterRateLimiter({
-	IPUA: [120, 'm']
+  IPUA: [120, "m"],
 });
 
 const rewardsLimiter = new RetryAfterRateLimiter({
-	IPUA: [60, 'm']
+  IPUA: [60, "m"],
 });
 
 const afkSessionLimiter = new RetryAfterRateLimiter({
-	IP: [40, '10m'],
-	IPUA: [20, '10m']
+  IP: [40, "10m"],
+  IPUA: [20, "10m"],
+});
+
+// Voucher redemption and credit gifting live under /credits. Keep the limit
+// tight so short voucher codes cannot be brute-forced.
+const creditsLimiter = new RetryAfterRateLimiter({
+  IP: [60, "10m"],
+  IPUA: [20, "10m"],
 });
 
 const limiterFor = (method: string, pathname: string) => {
-	if (method !== 'POST') return undefined;
+  if (method !== "POST") return undefined;
 
-	if (pathname === '/setup') return setupLimiter;
-	if (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/register')) {
-		return authLimiter;
-	}
-	if (pathname.startsWith('/api/auth/')) return authLimiter;
-	if (pathname === '/api/adapter') return adapterLimiter;
-	// The gateway signs every internal request; the browser cannot reach it.
-	if (pathname.startsWith('/api/afk/internal/')) return undefined;
-	if (pathname === '/api/afk/session') return afkSessionLimiter;
-	if (
-		pathname.startsWith('/afk') ||
-		pathname.startsWith('/rewards') ||
-		pathname.startsWith('/invite') ||
-		pathname.startsWith('/j4r')
-	) {
-		return rewardsLimiter;
-	}
+  if (pathname === "/setup") return setupLimiter;
+  if (
+    pathname.startsWith("/auth/login") ||
+    pathname.startsWith("/auth/register")
+  ) {
+    return authLimiter;
+  }
+  if (pathname.startsWith("/api/auth/")) return authLimiter;
+  if (pathname === "/api/adapter") return adapterLimiter;
+  // The gateway signs every internal request; the browser cannot reach it.
+  if (pathname.startsWith("/api/afk/internal/")) return undefined;
+  if (pathname === "/api/afk/session") return afkSessionLimiter;
+  if (pathname.startsWith("/credits")) return creditsLimiter;
+  if (
+    pathname.startsWith("/afk") ||
+    pathname.startsWith("/rewards") ||
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/j4r")
+  ) {
+    return rewardsLimiter;
+  }
 
-	return undefined;
+  return undefined;
 };
 
 const withSecurityHeaders = (response: Response) => {
-	response.headers.set('X-Content-Type-Options', 'nosniff');
-	response.headers.set('X-Frame-Options', 'DENY');
-	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-	response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	response.headers.set(
-		'Content-Security-Policy',
-		"frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
-	);
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()",
+  );
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  response.headers.set(
+    "Content-Security-Policy",
+    "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+  );
 
-	if (serverEnv.ORIGIN.startsWith('https://')) {
-		response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-	}
+  if (serverEnv.ORIGIN.startsWith("https://")) {
+    response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+  }
 
-	return response;
+  return response;
 };
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
-	const limiter = limiterFor(event.request.method, event.url.pathname);
+  const limiter = limiterFor(event.request.method, event.url.pathname);
 
-	if (limiter) {
-		const status = await limiter.check(event);
+  if (limiter) {
+    const status = await limiter.check(event);
 
-		if (status.limited) {
-			logActivity({
-				action: 'request.rate_limited',
-				severity: 'warning',
-				message: `Rate limit exceeded for ${event.url.pathname}`,
-				ip: event.getClientAddress(),
-				path: event.url.pathname,
-				metadata: { retryAfter: status.retryAfter, reason: status.reason }
-			});
+    if (status.limited) {
+      logActivity({
+        action: "request.rate_limited",
+        severity: "warning",
+        message: `Rate limit exceeded for ${event.url.pathname}`,
+        ip: event.getClientAddress(),
+        path: event.url.pathname,
+        metadata: { retryAfter: status.retryAfter, reason: status.reason },
+      });
 
-			return withSecurityHeaders(
-				new Response('Too many requests. Please try again shortly.', {
-					status: 429,
-					headers: {
-						'Content-Type': 'text/plain; charset=utf-8',
-						'Retry-After': String(status.retryAfter)
-					}
-				})
-			);
-		}
-	}
+      return withSecurityHeaders(
+        new Response("Too many requests. Please try again shortly.", {
+          status: 429,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Retry-After": String(status.retryAfter),
+          },
+        }),
+      );
+    }
+  }
 
-	await ensureOperationalSchema();
-	await loadSettings();
+  await ensureOperationalSchema();
+  await loadSettings();
 
-	const auth = getAuth();
-	const session = await auth.api.getSession({ headers: event.request.headers });
+  // better-auth serves its own /api/auth/sign-up/email endpoint, which would
+  // bypass the register page's `auth.registration` check. Block it when
+  // registration is disabled so the setting cannot be circumvented.
+  if (
+    event.request.method === "POST" &&
+    event.url.pathname === "/api/auth/sign-up/email" &&
+    !getBool("auth.registration")
+  ) {
+    return withSecurityHeaders(
+      new Response("Registration is disabled.", {
+        status: 403,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      }),
+    );
+  }
 
-	if (session) {
-		event.locals.session = session.session;
-		event.locals.user = session.user;
-		event.locals.panelUserId = await getPanelUserId(session.user.id);
+  const auth = getAuth();
+  const session = await auth.api.getSession({ headers: event.request.headers });
 
-		if (
-			panelAuthEnabled() &&
-			event.url.pathname.startsWith('/server') &&
-			!event.locals.panelUserId
-		) {
-			redirect(307, '/settings');
-		}
-	}
+  if (session) {
+    event.locals.session = session.session;
+    event.locals.user = session.user;
+    event.locals.panelUserId = await getPanelUserId(session.user.id);
 
-	const response = await (async () => {
-		const started = performance.now();
-		let result: Response | undefined;
+    if (
+      panelAuthEnabled() &&
+      event.url.pathname.startsWith("/server") &&
+      !event.locals.panelUserId
+    ) {
+      redirect(307, "/settings");
+    }
+  }
 
-		try {
-			result = await svelteKitHandler({ event, resolve, auth, building });
-			return withSecurityHeaders(result);
-		} finally {
-			recordRequest(
-				event.request.method,
-				event.url.pathname,
-				result?.status ?? 0,
-				performance.now() - started,
-				getNumber('monitor.slowMs')
-			);
-		}
-	})();
+  const response = await (async () => {
+    const started = performance.now();
+    let result: Response | undefined;
 
-	return response;
+    try {
+      result = await svelteKitHandler({ event, resolve, auth, building });
+      return withSecurityHeaders(result);
+    } finally {
+      recordRequest(
+        event.request.method,
+        event.url.pathname,
+        result?.status ?? 0,
+        performance.now() - started,
+        getNumber("monitor.slowMs"),
+      );
+    }
+  })();
+
+  return response;
 };
 
 export const handle: Handle = handleBetterAuth;
 
 export const handleError: HandleServerError = ({ kind, error, event }) => {
-	const status =
-		typeof error === 'object' &&
-		error !== null &&
-		'status' in error &&
-		typeof error.status === 'number'
-			? error.status
-			: 500;
-	const message =
-		typeof error === 'object' && error !== null && 'message' in error
-			? String(error.message)
-			: 'An unexpected error occurred.';
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : 500;
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String(error.message)
+      : "An unexpected error occurred.";
 
-	if (status < 500) {
-		return { message };
-	}
+  if (status < 500) {
+    return { message };
+  }
 
-	const reference = crypto.randomUUID();
-	const userId = event.locals.user?.id;
+  const reference = crypto.randomUUID();
+  const userId = event.locals.user?.id;
 
-	logError({
-		reference,
-		userId,
-		status,
-		method: event.request.method,
-		path: event.url.pathname,
-		route: event.route.id,
-		message,
-		stack: error instanceof Error ? error.stack : null,
-		metadata: { route: event.route.id, kind }
-	});
+  logError({
+    reference,
+    userId,
+    status,
+    method: event.request.method,
+    path: event.url.pathname,
+    route: event.route.id,
+    message,
+    stack: error instanceof Error ? error.stack : null,
+    metadata: { route: event.route.id, kind },
+  });
 
-	return {
-		message: 'An unexpected error occurred. Please try again or contact an administrator.',
-		reference
-	};
+  return {
+    message:
+      "An unexpected error occurred. Please try again or contact an administrator.",
+    reference,
+  };
 };

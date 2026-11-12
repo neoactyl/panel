@@ -3,7 +3,7 @@ import { getUserAdapter } from '#lib/server/panel/adapter.ts';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
-	const adapter = getUserAdapter(locals.panelUserId);
+	const adapter = getUserAdapter(locals.user?.id, locals.panelUserId);
 
 	try {
 		return { startup: await adapter.getStartup(params.id) };

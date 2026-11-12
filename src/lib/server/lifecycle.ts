@@ -2,7 +2,7 @@ import { maybeRunRenewals } from '#lib/server/billing/billing.ts';
 import { ensureOperationalSchema } from '#lib/server/db/bootstrap.ts';
 import { loadSettings } from '#lib/server/config/settings.ts';
 import { startDiscordBot, stopDiscordBot } from '#lib/server/discord/bot.ts';
-import { logError } from '#lib/server/system/logs.ts';
+import { logError, pruneExpiredLogs } from '#lib/server/system/logs.ts';
 import { createBanner } from '#lib/taag.ts';
 
 const inflight = new Set<Promise<unknown>>();
@@ -53,6 +53,7 @@ const runRenewalsOnce = async () => {
 		await ensureOperationalSchema();
 		await loadSettings();
 		await maybeRunRenewals();
+		await pruneExpiredLogs();
 	} finally {
 		renewalsRunning = false;
 	}
