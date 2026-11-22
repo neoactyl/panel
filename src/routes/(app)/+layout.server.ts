@@ -6,6 +6,7 @@ import { syncDiscordMembership } from '#lib/server/integrations/discord.ts';
 import { getBranding, getPublicSettings } from '#lib/server/config/settings.ts';
 import { getRenewalSettings } from '#lib/server/billing/billing.ts';
 import { getCreditBalance } from '#lib/server/billing/credits.ts';
+import { listEnabledAdSlots } from '#lib/server/billing/ads.ts';
 import { getUserSetting } from '#lib/server/db/user-settings.ts';
 import type { LayoutServerLoad } from './$types';
 
@@ -26,8 +27,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 
 	const publicSettings = getPublicSettings();
 	const renewal = getRenewalSettings();
-	const credits = renewal.enabled ? await getCreditBalance(locals.user.id) : null;
-	const perUserSound = await getUserSetting(locals.user.id, 'soundEnabled');
+	const [credits, perUserSound, adSlots] = await Promise.all([
+		renewal.enabled ? getCreditBalance(locals.user.id) : Promise.resolve(null),
+		getUserSetting(locals.user.id, 'soundEnabled'),
+		listEnabledAdSlots()
+	]);
 
 	return {
 		user: locals.user,
@@ -35,6 +39,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		branding: publicSettings.branding,
 		nav: publicSettings.nav,
 		features: publicSettings.features,
+		adSlots,
 		soundEnabled: perUserSound && (publicSettings.ui?.soundEnabled ?? true),
 		credits,
 		currency: renewal.currency,

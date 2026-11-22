@@ -310,6 +310,32 @@ export const earnTaskCompletion = sqliteTable(
   ],
 );
 
+/**
+ * A small advertisement slot rendered across every panel page. `script` is
+ * administrator-supplied HTML/JS and is only ever served into a sandboxed
+ * iframe so it cannot access the panel origin.
+ */
+export const adSlot = sqliteTable(
+  "ad_slot",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    label: text("label").notNull(),
+    script: text("script").notNull(),
+    width: integer("width").notNull().default(300),
+    height: integer("height").notNull().default(100),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("ad_slot_enabled_idx").on(table.enabled, table.sortOrder)],
+);
+
 export const voucher = sqliteTable(
   "voucher",
   {
@@ -498,6 +524,35 @@ export const discordInviteClaim = sqliteTable(
   },
   (table) => [
     index("discord_invite_claim_user_idx").on(table.userId, table.claimedAt),
+  ],
+);
+
+/**
+ * One row per Discord boost. `premium_since` changes when a member starts a new
+ * boost, so the unique index prevents duplicate payouts for the same boost while
+ * still allowing a member who unboosts and boosts again to earn again.
+ */
+export const discordBoostReward = sqliteTable(
+  "discord_boost_reward",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    guildId: text("guild_id").notNull(),
+    discordId: text("discord_id").notNull(),
+    premiumSince: integer("premium_since", { mode: "timestamp_ms" }).notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    rewardCoins: integer("reward_coins").notNull().default(0),
+    creditedAt: integer("credited_at", { mode: "timestamp_ms" }),
+    createdAt: timestamp("created_at"),
+  },
+  (table) => [
+    uniqueIndex("discord_boost_reward_unique_idx").on(
+      table.guildId,
+      table.discordId,
+      table.premiumSince,
+    ),
+    index("discord_boost_reward_user_idx").on(table.userId, table.createdAt),
   ],
 );
 

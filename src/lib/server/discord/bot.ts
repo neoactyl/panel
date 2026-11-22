@@ -1,5 +1,6 @@
 import type { Client, Guild, GuildMember, Invite } from "discord.js";
 import type { DiscordInviteEvent } from "#lib/server/rewards/invites.ts";
+import { recordBoostReward } from "#lib/server/rewards/boosts.ts";
 import { handleInteraction, registerCommands } from "./commands.ts";
 
 type CachedInvite = {
@@ -403,6 +404,47 @@ const handleMemberAdd = (member: GuildMember) => {
     });
 };
 
+/**
+ * Pay the configured per-boost reward. Discord sets `premiumSince` when a boost
+ * starts and clears it when the last boost for that member ends, so the pair
+ * (member, premiumSince) identifies a single boost. The database enforces that
+ * uniqueness, making repeated gateway events and reconnect backfills harmless.
+ */
+const processBoost = async (member: GuildMember) => {
+  if (member.user.bot || !member.premiumSince) return;
+
+  try {
+    await recordBoostReward({
+      type: "boost",
+      guildId: member.guild.id,
+      discordId: member.id,
+      premiumSince: member.premiumSince.toISOString(),
+    });
+  } catch (cause) {
+    console.error("[discord] Unable to record a boost reward.", cause);
+  }
+};
+
+/**
+ * Members who boosted while the bot was offline never emit a member update, so
+ * scan the member cache once per connection. The unique index keeps this
+ * idempotent across restarts and shard handovers.
+ */
+const backfillBoosts = async (guild: Guild) => {
+  try {
+    const members = await guild.members.fetch();
+
+    for (const member of members.values()) {
+      if (member.premiumSince) await processBoost(member);
+    }
+  } catch (cause) {
+    console.warn(
+      `[discord] Unable to backfill boosts for ${guild.id}; new boosts are still tracked.`,
+      cause,
+    );
+  }
+};
+
 const destroyClient = async (client: Client | null) => {
   if (!client) return;
 
@@ -479,6 +521,18 @@ const buildClient = async () => {
   client.on(Events.GuildMemberAdd, (member) => {
     if (!isActiveGuild(member.guild.id)) return;
     handleMemberAdd(member);
+    void processBoost(member);
+  });
+
+  client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+    if (newMember.user.bot || !isActiveGuild(newMember.guild.id)) return;
+
+    const before = oldMember.premiumSince?.getTime() ?? null;
+    const after = newMember.premiumSince?.getTime() ?? null;
+
+    if (!after || after === before) return;
+
+    void processBoost(newMember);
   });
 
   client.on(Events.GuildMemberRemove, (member) => {
@@ -632,6 +686,7 @@ const connect = async (token: string): Promise<Client | null> => {
 
         await refreshInvites(guild, manageGuild);
         await registerCommands(guild);
+        void backfillBoosts(guild);
         console.info(
           `[discord] Tracking invites for ${guild.name} (${guild.id}) on shard(s) ${shardLabel}.`,
         );

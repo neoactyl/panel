@@ -76,9 +76,13 @@ const limiterFor = (method: string, pathname: string) => {
   return undefined;
 };
 
-const withSecurityHeaders = (response: Response) => {
+const withSecurityHeaders = (response: Response, pathname = "") => {
+  // Ad frames are the one response that may be embedded: they are rendered in a
+  // sandboxed iframe so third-party ad scripts never share the panel origin.
+  const frameable = pathname.startsWith("/ads/frame/");
+
   response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-Frame-Options", frameable ? "SAMEORIGIN" : "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set(
     "Permissions-Policy",
@@ -87,7 +91,9 @@ const withSecurityHeaders = (response: Response) => {
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set(
     "Content-Security-Policy",
-    "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+    frameable
+      ? "frame-ancestors 'self'"
+      : "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
   );
 
   if (serverEnv.ORIGIN.startsWith("https://")) {
@@ -170,7 +176,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 
     try {
       result = await svelteKitHandler({ event, resolve, auth, building });
-      return withSecurityHeaders(result);
+      return withSecurityHeaders(result, event.url.pathname);
     } finally {
       recordRequest(
         event.request.method,

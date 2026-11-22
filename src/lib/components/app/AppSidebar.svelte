@@ -26,7 +26,13 @@
 		pages?: PanelPage[];
 		branding?: { name: string; logo: string; description: string };
 		isAdmin?: boolean;
-		nav?: { afk: boolean; j4r: boolean; storefront: boolean; rewards: boolean; invites: boolean };
+		nav?: {
+			afk: boolean;
+			j4r: boolean;
+			storefront: boolean;
+			rewards: boolean;
+			invites: boolean;
+		};
 	} = $props();
 
 	const items = $derived([
