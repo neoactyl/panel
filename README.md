@@ -109,12 +109,12 @@ Open <http://localhost:5173>. On an empty database you are redirected to `/setup
 
 ### Docker
 
-A production-oriented Compose setup is included:
+A production-oriented Compose setup is included. It uses the published `ghcr.io/neoactyl/panel:latest` image:
 
 ```bash
 cp .env.example .env
 # edit .env, especially ORIGIN and BETTER_AUTH_SECRET
-docker compose up -d --build
+docker compose up -d
 ```
 
 The panel is available on <http://localhost:3000>. See [Deployment](docs/deployment.md) for volumes, reverse proxies, backups, and upgrades.

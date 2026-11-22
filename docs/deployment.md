@@ -4,7 +4,7 @@ Neoactyl must run as a long-lived Node/Bun process. The AFK WebSocket gateway at
 
 ## Docker Compose
 
-The repository includes `Dockerfile` and `docker-compose.yml`.
+The repository includes a `Dockerfile` and a `docker-compose.yml` that uses the published `ghcr.io/neoactyl/panel:latest` image.
 
 ```bash
 cp .env.example .env
@@ -19,10 +19,11 @@ BETTER_AUTH_SECRET=<32 or more random characters>
 SETTINGS_ENCRYPTION_KEY=<32 or more random characters>
 ```
 
-Build and start:
+Pull and start:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 The panel listens on port `3000` by default. Open <http://localhost:3000> and complete `/setup`.
@@ -164,7 +165,7 @@ docker run -d --name neoactyl-bot \
   -e DISCORD_EMBED_BOT=false \
   -e DATABASE_URL=file:/data/neoactyl.db \
   -v "$PWD/data:/data" \
-  neoactyl:latest \
+  ghcr.io/neoactyl/panel:latest \
   bun scripts/discord-bot.ts
 ```
 
@@ -185,8 +186,8 @@ For a hosted libSQL/Turso database, use the provider's backup tooling. Back up `
 ## Upgrades
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Migrations run automatically on container start. Before a major upgrade, take a database backup and read the release notes or commit history for manual steps.

@@ -2,8 +2,7 @@ name: neoactyl
 
 services:
   panel:
-    build: .
-    image: neoactyl:latest
+    image: ghcr.io/neoactyl/panel:latest
     restart: unless-stopped
     ports:
       - "${PANEL_PORT:-3000}:3000"
