@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { addCreditsWith, getCreditBalance } from '#lib/server/billing/credits.ts';
 import { account } from '#lib/server/db/auth.schema.ts';
 import { db } from '#lib/server/db/index.ts';
@@ -9,6 +9,8 @@ import {
 	inviter
 } from '#lib/server/db/ops.ts';
 import {
+	byRecency,
+	isInviteClaimable,
 	isInviteCounted,
 	summarizeInvites,
 	type TrackedInvite
@@ -24,7 +26,7 @@ import { notifyUser } from '#lib/server/system/notifications.ts';
 const DISCORD_EPOCH = 1420070400000n;
 
 export class InviteRewardError extends Error {
-	code: 'DISABLED' | 'NOT_LINKED' | 'NO_INVITES' | 'CONFLICT';
+	code: 'DISABLED' | 'NOT_LINKED' | 'NO_INVITES' | 'CONFLICT' | 'NOT_FOUND' | 'INVALID';
 
 	constructor(message: string, code: InviteRewardError['code']) {
 		super(message);
@@ -172,6 +174,143 @@ export const recordInviteLeave = async ({
 		.run();
 
 	return { recorded: true as const };
+};
+
+export type InviteAdminAction = 'clear' | 'deduct';
+
+export type InviteAdminResult = {
+	action: InviteAdminAction;
+	/** Invites removed from the member's claimable balance. */
+	affected: number;
+	/** Claimable invites left after the adjustment. */
+	remaining: number;
+	lifetime: number;
+};
+
+/**
+ * Administrator correction for tracked invites.
+ *
+ * `clear` removes every claimable invite and resets the member's current and
+ * lifetime counters. `deduct` removes up to `amount` of the newest claimable
+ * invites. Removed invites are stamped as rewarded rather than deleted, so a
+ * member cannot leave and rejoin to make the same invite claimable again.
+ */
+export const adjustDiscordInvites = async ({
+	guildId,
+	discordId,
+	action,
+	amount = 0
+}: {
+	guildId: string;
+	discordId: string;
+	action: InviteAdminAction;
+	amount?: number;
+}): Promise<InviteAdminResult> => {
+	const config = getDiscordRewardConfig();
+	const now = new Date();
+
+	if (action === 'deduct' && (!Number.isInteger(amount) || amount < 1)) {
+		throw new InviteRewardError('Deduct at least one invite.', 'INVALID');
+	}
+
+	return db.transaction(async (tx) => {
+		const record = await tx
+			.select()
+			.from(inviter)
+			.where(eq(inviter.discordId, discordId))
+			.get();
+
+		if (!record) {
+			throw new InviteRewardError('That member has no tracked invites.', 'NOT_FOUND');
+		}
+
+		const tracked: TrackedInvite[] = await tx
+			.select(trackedInviteColumns)
+			.from(invitedUser)
+			.where(
+				and(eq(invitedUser.inviterId, discordId), eq(invitedUser.guildId, guildId))
+			)
+			.all();
+
+		const summary = summarizeInvites(tracked, {
+			requireStillMember: config.inviteRequireStillMember
+		});
+		const claimable = tracked
+			.filter((invite) => isInviteClaimable(invite, config.inviteRequireStillMember))
+			.sort(byRecency);
+
+		if (action === 'clear') {
+			await tx
+				.update(invitedUser)
+				.set({ rewardedAt: now })
+				.where(
+					and(
+						eq(invitedUser.inviterId, discordId),
+						eq(invitedUser.guildId, guildId),
+						eq(invitedUser.counted, true),
+						isNull(invitedUser.rewardedAt)
+					)
+				)
+				.run();
+
+			await tx
+				.update(inviter)
+				.set({ currentInviteCount: 0, totalLifetimeInvites: 0, updatedAt: now })
+				.where(eq(inviter.discordId, discordId))
+				.run();
+
+			return {
+				action,
+				affected: summary.claimable,
+				remaining: 0,
+				lifetime: 0
+			};
+		}
+
+		const target = Math.min(amount, claimable.length);
+
+		if (target === 0) {
+			return {
+				action,
+				affected: 0,
+				remaining: summary.claimable,
+				lifetime: record.totalLifetimeInvites
+			};
+		}
+
+		const ids = claimable.slice(0, target).map((invite) => invite.discordId);
+
+		await tx
+			.update(invitedUser)
+			.set({ rewardedAt: now })
+			.where(
+				and(
+					eq(invitedUser.inviterId, discordId),
+					eq(invitedUser.guildId, guildId),
+					inArray(invitedUser.discordId, ids)
+				)
+			)
+			.run();
+
+		const lifetime = Math.max(0, record.totalLifetimeInvites - target);
+
+		await tx
+			.update(inviter)
+			.set({
+				currentInviteCount: Math.max(0, record.currentInviteCount - target),
+				totalLifetimeInvites: lifetime,
+				updatedAt: now
+			})
+			.where(eq(inviter.discordId, discordId))
+			.run();
+
+		return {
+			action,
+			affected: target,
+			remaining: Math.max(0, summary.claimable - target),
+			lifetime
+		};
+	});
 };
 
 export const getDiscordInviteState = async (userId: string) => {

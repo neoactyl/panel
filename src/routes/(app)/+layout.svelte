@@ -5,6 +5,7 @@
 	import AppSidebar from '#lib/components/app/AppSidebar.svelte';
 	import ServerSidebar from '#lib/components/app/ServerSidebar.svelte';
 	import UploadProgress from '#lib/components/app/UploadProgress.svelte';
+	import GlobalAds from '#lib/components/app/GlobalAds.svelte';
 	import PanelPromptHost from '#lib/panel/PanelPromptHost.svelte';
 	import { feedback } from '#lib/panel/feedback.svelte.ts';
 	import type { PanelBlueprint } from '#lib/adapter/sdk.ts';
@@ -95,4 +96,6 @@
 {/if}
 
 <PanelPromptHost />
+
+<GlobalAds ads={data.adSlots} />
 

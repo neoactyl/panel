@@ -40,6 +40,10 @@ The project is still evolving, but the aim is to keep server management straight
 - **AFK Page** — Let users earn credits through the AFK system.
 - **Discord Invite Rewards** — Reward users for inviting people to a Discord server.
 - **Join for Rewards (J4R)** — Reward users for joining designated Discord servers.
+- **Discord Boost Rewards** — Pay credits automatically when a linked member boosts the Discord server.
+- **Panel Ads** — Administrators can add unobtrusive ad scripts that render across the whole panel.
+- **Anti-Adblock Gate** — Users with an ad blocker see a blocking prompt and cannot interact with the panel until ads can load.
+- **Discord Admin Commands** — Manage invites, look up accounts and grant credits from Discord.
 
 ### Adapter System
 

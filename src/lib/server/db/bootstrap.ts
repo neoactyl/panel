@@ -228,6 +228,18 @@ const statements = [
 		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
   sql`CREATE INDEX IF NOT EXISTS earn_task_completion_user_idx ON earn_task_completion (user_id, task_id, created_at)`,
+  sql`CREATE TABLE IF NOT EXISTS ad_slot (
+		id TEXT PRIMARY KEY NOT NULL,
+		label TEXT NOT NULL,
+		script TEXT NOT NULL,
+		width INTEGER NOT NULL DEFAULT 300,
+		height INTEGER NOT NULL DEFAULT 100,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		sort_order INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER)),
+		updated_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+  sql`CREATE INDEX IF NOT EXISTS ad_slot_enabled_idx ON ad_slot (enabled, sort_order)`,
   sql`CREATE TABLE IF NOT EXISTS voucher (
 		id TEXT PRIMARY KEY NOT NULL,
 		code TEXT NOT NULL UNIQUE,
@@ -331,6 +343,18 @@ const statements = [
 		claimed_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
 	)`,
   sql`CREATE INDEX IF NOT EXISTS discord_invite_claim_user_idx ON discord_invite_claim (user_id, claimed_at)`,
+  sql`CREATE TABLE IF NOT EXISTS discord_boost_reward (
+		id TEXT PRIMARY KEY NOT NULL,
+		guild_id TEXT NOT NULL,
+		discord_id TEXT NOT NULL,
+		premium_since INTEGER NOT NULL,
+		user_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+		reward_coins INTEGER NOT NULL DEFAULT 0,
+		credited_at INTEGER,
+		created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch('subsecond') * 1000 AS INTEGER))
+	)`,
+  sql`CREATE UNIQUE INDEX IF NOT EXISTS discord_boost_reward_unique_idx ON discord_boost_reward (guild_id, discord_id, premium_since)`,
+  sql`CREATE INDEX IF NOT EXISTS discord_boost_reward_user_idx ON discord_boost_reward (user_id, created_at)`,
 ];
 
 const migrateUserQuota = async () => {

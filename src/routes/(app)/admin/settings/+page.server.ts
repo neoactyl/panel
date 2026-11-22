@@ -158,6 +158,7 @@ const extraSections: ExtraSection[] = [
 				placeholder: 'Optional'
 			},
 			{ key: 'vouchers.enabled', label: 'Enable vouchers', type: 'boolean' },
+			{ key: 'ads.enabled', label: 'Enable panel ads', type: 'boolean' },
 			{ key: 'credits.giftEnabled', label: 'Enable credit gifting', type: 'boolean' },
 			{ key: 'credits.giftMin', label: 'Minimum gift amount', type: 'number' }
 		]
@@ -206,6 +207,7 @@ const extraSections: ExtraSection[] = [
 			{ key: 'discord.requireMembership', label: 'Require guild membership', type: 'boolean' },
 			{ key: 'discord.j4rEnabled', label: 'Enable J4R claims', type: 'boolean' },
 			{ key: 'discord.j4rRewardCoins', label: 'J4R reward credits', type: 'number' },
+			{ key: 'discord.boostRewardCoins', label: 'Credits per Discord boost', type: 'number' },
 			{
 				key: 'discord.inviteTrackingEnabled',
 				label: 'Enable embedded Discord invite bot',

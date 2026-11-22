@@ -60,6 +60,7 @@ export const getDiscordRewardConfig = () => {
 		requireMembership: getBool('discord.requireMembership'),
 		j4rEnabled: getBool('discord.j4rEnabled'),
 		j4rRewardCoins: Math.max(0, getNumber('discord.j4rRewardCoins')),
+		boostRewardCoins: Math.max(0, getNumber('discord.boostRewardCoins')),
 		inviteTrackingEnabled: getBool('discord.inviteTrackingEnabled'),
 		inviteMinAccountAgeDays: Math.max(0, getNumber('discord.inviteMinAccountAgeDays')),
 		inviteRequireStillMember: getBool('discord.inviteRequireStillMember'),

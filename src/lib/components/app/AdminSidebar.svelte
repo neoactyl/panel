@@ -15,6 +15,7 @@
 	import IconCreditCard from '@tabler/icons-svelte/icons/credit-card';
 	import IconActivity from '@tabler/icons-svelte/icons/activity';
 	import IconMail from '@tabler/icons-svelte/icons/mail';
+	import IconSpeakerphone from '@tabler/icons-svelte/icons/speakerphone';
 
 	let {
 		user,
@@ -34,6 +35,7 @@
 			{ href: '/admin/nodes', label: 'Nodes', icon: IconServer, exact: false },
 				{ href: '/admin/storefront', label: 'Storefront', icon: IconShoppingBag, exact: false },
 				{ href: '/admin/economy', label: 'Economy', icon: IconCoin, exact: false },
+				{ href: '/admin/ads', label: 'Ads', icon: IconSpeakerphone, exact: false },
 				{ href: '/admin/credits', label: 'Credit top-ups', icon: IconCreditCard, exact: false },
 				{ href: '/admin/software', label: 'Software', icon: IconPackage, exact: false },
 				{ href: '/admin/system', label: 'System', icon: IconActivity, exact: false },
