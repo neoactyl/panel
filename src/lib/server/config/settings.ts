@@ -137,6 +137,8 @@ export const SETTING_DEFAULTS = {
   "discord.inviteUrl": "",
   "discord.botToken": "",
   "discord.requiredRoleId": "",
+  "discord.panelAdminRoleIds": "",
+  "discord.panelAdminUserIds": "",
   "discord.j4rEnabled": "true",
   "discord.j4rRewardCoins": "0",
   "discord.boostRewardCoins": "0",

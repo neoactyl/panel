@@ -710,7 +710,7 @@ const connect = async (token: string): Promise<Client | null> => {
 };
 
 const start = async (): Promise<Client | null> => {
-  const { getBool, getSetting, loadSettings } =
+  const { getBool, getNumber, getSetting, loadSettings } =
     await import("#lib/server/config/settings.ts");
 
   const { ids, count } = readShardConfig(
@@ -723,10 +723,14 @@ const start = async (): Promise<Client | null> => {
 
   await loadSettings();
 
-  if (!getBool("discord.inviteTrackingEnabled")) {
+  const inviteTrackingEnabled = getBool("discord.inviteTrackingEnabled");
+  const j4rEnabled = getBool("discord.j4rEnabled");
+  const boostRewardsEnabled = getNumber("discord.boostRewardCoins") > 0;
+
+  if (!inviteTrackingEnabled && !j4rEnabled && !boostRewardsEnabled) {
     warnOnce(
       "disabled",
-      "[discord] Invite tracking is disabled; embedded bot not started.",
+      "[discord] Invite tracking, J4R and boost rewards are disabled; embedded bot not started.",
     );
     return null;
   }

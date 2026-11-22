@@ -100,7 +100,6 @@ const statements = [
 	)`,
   sql`CREATE INDEX IF NOT EXISTS storefront_redemption_item_idx ON storefront_redemption (item_id)`,
   sql`CREATE INDEX IF NOT EXISTS storefront_redemption_user_idx ON storefront_redemption (user_id)`,
-  sql`CREATE UNIQUE INDEX IF NOT EXISTS storefront_redemption_claim_idx ON storefront_redemption (claim_key)`,
   sql`CREATE TABLE IF NOT EXISTS credit_account (
 		user_id TEXT PRIMARY KEY NOT NULL REFERENCES user(id) ON DELETE CASCADE,
 		balance INTEGER NOT NULL DEFAULT 0,

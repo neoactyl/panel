@@ -117,6 +117,8 @@ Most behavior is configured from `/admin` after setup. Settings are stored in th
 
 Defaults are defined in `src/lib/server/config/settings.ts`. New settings should be given a sensible default there so existing installations keep working.
 
+Discord panel-management commands (`/invites-admin`, `/panel-stats`, `/panel-user` and `/panel-grant`) require both **Manage Server** permission and an explicit allowlist in **Panel admin Discord role IDs** or **Panel admin Discord user IDs**. Configure at least one of those settings; without an allowlist these commands refuse every caller.
+
 ## Email and SMTP
 
 Outgoing email is configured from `/admin/email`. The SMTP password is stored as an encrypted secret, and the rest of the connection details live in the normal settings table.

@@ -204,6 +204,18 @@ const extraSections: ExtraSection[] = [
 				type: 'secret'
 			},
 			{ key: 'discord.requiredRoleId', label: 'Required role ID', type: 'text' },
+			{
+				key: 'discord.panelAdminRoleIds',
+				label: 'Panel admin Discord role IDs',
+				type: 'text',
+				placeholder: 'Comma-separated; required for /invites-admin and /panel-* commands'
+			},
+			{
+				key: 'discord.panelAdminUserIds',
+				label: 'Panel admin Discord user IDs',
+				type: 'text',
+				placeholder: 'Comma-separated; alternative to panel admin roles'
+			},
 			{ key: 'discord.requireMembership', label: 'Require guild membership', type: 'boolean' },
 			{ key: 'discord.j4rEnabled', label: 'Enable J4R claims', type: 'boolean' },
 			{ key: 'discord.j4rRewardCoins', label: 'J4R reward credits', type: 'number' },

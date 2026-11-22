@@ -91,9 +91,7 @@ const withSecurityHeaders = (response: Response, pathname = "") => {
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set(
     "Content-Security-Policy",
-    frameable
-      ? "frame-ancestors 'self'"
-      : "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+    `frame-ancestors ${frameable ? "'self'" : "'none'"}; base-uri 'self'; object-src 'none'`,
   );
 
   if (serverEnv.ORIGIN.startsWith("https://")) {

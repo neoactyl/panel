@@ -79,6 +79,10 @@ export const listAdSlots = async () =>
 
 /** Script served by the framed endpoint; only enabled slots may render. */
 export const getAdScript = async (id: string) => {
+	if (!getBool('ads.enabled')) {
+		throw new AdError('Panel ads are disabled.', 'NOT_FOUND');
+	}
+
 	const row = await db
 		.select({ script: adSlot.script, enabled: adSlot.enabled })
 		.from(adSlot)

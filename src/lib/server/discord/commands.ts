@@ -19,6 +19,7 @@ import {
 	type InviteSummary,
 	type TrackedInvite
 } from '#lib/server/rewards/invite-stats.ts';
+import { getSetting } from '#lib/server/config/settings.ts';
 import { getDiscordRewardConfig } from '#lib/server/rewards/config.ts';
 import {
 	InviteRewardError,
@@ -53,26 +54,66 @@ const isExpiredInteraction = (cause: unknown): boolean => {
 	return typeof code === 'number' && EXPIRED_INTERACTION_CODES.has(code);
 };
 
-/**
- * Panel-management commands are limited to Discord members who can manage the
- * guild. `setDefaultMemberPermissions` hides them from everyone else, and this
- * runtime check still applies if the command is invoked another way.
- */
-const isDiscordAdmin = (interaction: ChatInputCommandInteraction) => {
-	const permissions = interaction.memberPermissions;
+const parseIdList = (value: string): Set<string> =>
+	new Set(
+		value
+			.split(/[,\s]+/)
+			.map((entry) => entry.trim())
+			.filter(Boolean)
+	);
 
-	return Boolean(
+const memberRoleIds = (interaction: ChatInputCommandInteraction): Set<string> => {
+	const roles: unknown = interaction.member?.roles;
+
+	if (Array.isArray(roles)) return new Set(roles as string[]);
+
+	if (
+		roles &&
+		typeof roles === 'object' &&
+		'keys' in roles &&
+		typeof roles.keys === 'function'
+	) {
+		return new Set((roles as Map<string, unknown>).keys());
+	}
+
+	if (roles && typeof roles === 'object' && 'cache' in roles) {
+		const cache = (roles as { cache: Map<string, unknown> }).cache;
+		return new Set(cache.keys());
+	}
+
+	return new Set();
+};
+
+/**
+ * Panel-management commands require both Discord guild management permissions
+ * and an explicit panel-admin allowlist. `setDefaultMemberPermissions` hides
+ * them from everyone else, but this runtime check is the actual gate.
+ */
+const isPanelAdmin = (interaction: ChatInputCommandInteraction) => {
+	const permissions = interaction.memberPermissions;
+	const hasGuildPermission = Boolean(
 		permissions &&
 			(permissions.has(PermissionFlagsBits.Administrator) ||
 				permissions.has(PermissionFlagsBits.ManageGuild))
 	);
+
+	if (!hasGuildPermission) return false;
+
+	const allowedUsers = parseIdList(getSetting('discord.panelAdminUserIds'));
+	if (allowedUsers.has(interaction.user.id)) return true;
+
+	const allowedRoles = parseIdList(getSetting('discord.panelAdminRoleIds'));
+	if (allowedRoles.size === 0) return false;
+
+	return [...memberRoleIds(interaction)].some((roleId) => allowedRoles.has(roleId));
 };
 
 const refuseNonAdmin = async (interaction: ChatInputCommandInteraction) => {
-	if (isDiscordAdmin(interaction)) return false;
+	if (isPanelAdmin(interaction)) return false;
 
 	await interaction.reply({
-		content: 'You need the **Manage Server** permission to use this command.',
+		content:
+			'You need **Manage Server** permission and an allowed panel-admin role or user ID to use this command.',
 		flags: MessageFlags.Ephemeral
 	});
 
@@ -212,7 +253,7 @@ const commands: Command[] = [
 			.addSubcommand((subcommand) =>
 				subcommand
 					.setName('clear')
-					.setDescription('Remove every claimable invite and reset lifetime invites.')
+					.setDescription('Remove every claimable invite and adjust lifetime invites.')
 					.addUserOption((option) =>
 						option.setName('user').setDescription('Member to reset.').setRequired(true)
 					)

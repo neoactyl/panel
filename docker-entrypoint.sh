@@ -2,7 +2,7 @@
 set -eu
 
 # Allow one-off commands, for example running the Discord bot in a separate
-# container: docker run ... neoactyl:latest bun scripts/discord-bot.ts
+# container: docker run ... ghcr.io/neoactyl/panel:latest bun scripts/discord-bot.ts
 if [ "$#" -gt 0 ]; then
 	exec "$@"
 fi

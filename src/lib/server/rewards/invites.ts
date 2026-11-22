@@ -232,38 +232,60 @@ export const adjustDiscordInvites = async ({
 			)
 			.all();
 
-		const summary = summarizeInvites(tracked, {
-			requireStillMember: config.inviteRequireStillMember
-		});
 		const claimable = tracked
 			.filter((invite) => isInviteClaimable(invite, config.inviteRequireStillMember))
 			.sort(byRecency);
 
-		if (action === 'clear') {
-			await tx
-				.update(invitedUser)
-				.set({ rewardedAt: now })
-				.where(
-					and(
-						eq(invitedUser.inviterId, discordId),
-						eq(invitedUser.guildId, guildId),
-						eq(invitedUser.counted, true),
-						isNull(invitedUser.rewardedAt)
-					)
-				)
-				.run();
+		// Counters on `inviters` are global across every tracked guild, while the
+		// adjustment itself is guild-scoped. Recompute the claimable count from all
+		// of the inviter's rows after each adjustment so guild A cannot wipe out
+		// guild B's counters.
+		const syncGlobalCounters = async (removed: number) => {
+			const all: TrackedInvite[] = await tx
+				.select(trackedInviteColumns)
+				.from(invitedUser)
+				.where(eq(invitedUser.inviterId, discordId))
+				.all();
+			const global = summarizeInvites(all, {
+				requireStillMember: config.inviteRequireStillMember
+			});
+			const lifetime = Math.max(0, record.totalLifetimeInvites - removed);
+			const current = Math.min(record.currentInviteCount, Math.max(0, global.claimable));
 
 			await tx
 				.update(inviter)
-				.set({ currentInviteCount: 0, totalLifetimeInvites: 0, updatedAt: now })
+				.set({ currentInviteCount: current, totalLifetimeInvites: lifetime, updatedAt: now })
 				.where(eq(inviter.discordId, discordId))
 				.run();
 
+			return { remaining: current, lifetime };
+		};
+
+		if (action === 'clear') {
+			const clearConditions = [
+				eq(invitedUser.inviterId, discordId),
+				eq(invitedUser.guildId, guildId),
+				eq(invitedUser.counted, true),
+				isNull(invitedUser.rewardedAt)
+			];
+
+			if (config.inviteRequireStillMember) {
+				clearConditions.push(eq(invitedUser.stillInServer, true));
+			}
+
+			const stamped = await tx
+				.update(invitedUser)
+				.set({ rewardedAt: now })
+				.where(and(...clearConditions))
+				.returning({ discordId: invitedUser.discordId });
+
+			const { remaining, lifetime } = await syncGlobalCounters(stamped.length);
+
 			return {
 				action,
-				affected: summary.claimable,
-				remaining: 0,
-				lifetime: 0
+				affected: stamped.length,
+				remaining,
+				lifetime
 			};
 		}
 
@@ -273,7 +295,7 @@ export const adjustDiscordInvites = async ({
 			return {
 				action,
 				affected: 0,
-				remaining: summary.claimable,
+				remaining: record.currentInviteCount,
 				lifetime: record.totalLifetimeInvites
 			};
 		}
@@ -292,22 +314,12 @@ export const adjustDiscordInvites = async ({
 			)
 			.run();
 
-		const lifetime = Math.max(0, record.totalLifetimeInvites - target);
-
-		await tx
-			.update(inviter)
-			.set({
-				currentInviteCount: Math.max(0, record.currentInviteCount - target),
-				totalLifetimeInvites: lifetime,
-				updatedAt: now
-			})
-			.where(eq(inviter.discordId, discordId))
-			.run();
+		const { remaining, lifetime } = await syncGlobalCounters(target);
 
 		return {
 			action,
 			affected: target,
-			remaining: Math.max(0, summary.claimable - target),
+			remaining,
 			lifetime
 		};
 	});

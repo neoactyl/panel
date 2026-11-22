@@ -40,6 +40,12 @@
 	};
 
 	const evaluate = () => {
+		if (ads.length === 0) {
+			checking = false;
+			blocked = false;
+			return;
+		}
+
 		if (!checking || !baitChecked || probeResult === 'pending') return;
 
 		blocked = baitHidden || probeResult === 'blocked';
@@ -66,9 +72,9 @@
 		window.setTimeout(() => settle('blocked'), 4000);
 	};
 
-	const runDetection = () => {
+	const runDetection = (keepBlocked = false) => {
 		checking = true;
-		blocked = false;
+		if (!keepBlocked) blocked = false;
 		baitChecked = false;
 		baitHidden = false;
 		probeResult = 'pending';
@@ -84,11 +90,18 @@
 
 	const retry = () => {
 		reloadKey += 1;
-		runDetection();
+		runDetection(true);
 	};
 
 	$effect(() => {
-		if (started || ads.length === 0) return;
+		if (ads.length === 0) {
+			started = false;
+			checking = false;
+			blocked = false;
+			return;
+		}
+
+		if (started) return;
 		started = true;
 		runDetection();
 	});
